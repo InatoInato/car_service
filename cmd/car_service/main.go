@@ -10,6 +10,7 @@ import (
 	"time"
 
 	router "github.com/InatoInato/car_service.git/internal"
+	"github.com/InatoInato/car_service.git/internal/config"
 )
 
 func main() {
@@ -17,8 +18,10 @@ func main() {
 
 	r := router.New(logger)
 
+	cfg := config.Load()
+
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         ":" + cfg.Server.Port,
 		Handler:      r,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
