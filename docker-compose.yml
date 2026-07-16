@@ -1,10 +1,7 @@
-
 services:
   postgres:
     image: postgres:17-alpine
     container_name: car-postgres
-
-    restart: unless-stopped
 
     environment:
       POSTGRES_USER: postgres
@@ -20,8 +17,26 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cars"]
       interval: 5s
-      timeout: 5s
       retries: 10
+
+  car_service:
+    build: .
+    container_name: car-service
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DATABASE: cars
+      POSTGRES_SSLMODE: disable
+
+    ports:
+      - "8080:8080"
 
 volumes:
   postgres_data:
