@@ -69,7 +69,7 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusNotFound, "car not found")
 			return
 		}
-		h.writeError(w, http.StatusInternalServerError, "failed to get car")
+		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
