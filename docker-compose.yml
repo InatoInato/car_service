@@ -19,6 +19,26 @@ services:
       interval: 5s
       retries: 10
 
+  migrate:
+    image: migrate/migrate:v4.18.3
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    volumes:
+      - ./database/migrations:/migrations
+
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://postgres:postgres@postgres:5432/cars?sslmode=disable",
+        "up"
+      ]
+
+    restart: "no"
+
+
   car_service:
     build: .
     container_name: car-service
