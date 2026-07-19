@@ -77,7 +77,7 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
-	cars, err := h.service.ListCars(r.Context())
+	cars, err := h.service.ListCars(r.Context(), 20, 0)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "failed to fetch cars")
 		return

@@ -69,8 +69,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	store := db.New(dbPool)
-	carService := service.NewCarService(store)
+	queries := db.New(dbPool)
+	carService := service.NewCarService(queries)
 	r := router.New(logger, carService)
 
 	server := &http.Server{

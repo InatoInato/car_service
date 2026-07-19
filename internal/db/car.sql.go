@@ -139,21 +139,19 @@ func (q *Queries) GetCarByID(ctx context.Context, id uuid.UUID) (Car, error) {
 }
 
 const listCars = `-- name: ListCars :many
-SELECT
-    id,
-    brand,
-    model,
-    production_year,
-    color,
-    price,
-    created_at,
-    updated_at
+SELECT id, brand, model, production_year, color, price, created_at, updated_at
 FROM cars
 ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
 `
 
-func (q *Queries) ListCars(ctx context.Context) ([]Car, error) {
-	rows, err := q.db.Query(ctx, listCars)
+type ListCarsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListCars(ctx context.Context, arg ListCarsParams) ([]Car, error) {
+	rows, err := q.db.Query(ctx, listCars, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
