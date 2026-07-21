@@ -1,0 +1,66 @@
+name: CI
+
+# CI workflow for the car_service repository
+# Triggers and job definitions follow
+
+on:
+  # Trigger on push to main and develop branches
+  push:
+    branches:
+      - main
+      - develop
+
+  # Trigger on pull request events
+  pull_request:
+
+jobs:
+  # Test job runs linting, vetting, tests and builds
+  test:
+    # Use latest Ubuntu runner
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step: Checkout repository code to the runner
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step: Setup Go using go.mod to determine version
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Step: Cache Go modules to speed up builds
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      # Step: Download module dependencies
+      - name: Download modules
+        run: go mod download
+
+      # Step: Check code formatting with gofmt
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+
+      # Step: Run go vet for static analysis
+      - name: Run go vet
+        run: go vet ./...
+
+      # Step: Run unit tests
+      - name: Run tests
+        run: go test ./...
+
+      # Step: Build the Go application binary
+      - name: Build application
+        run: go build ./cmd/car_service
+
+      # Step: Build Docker image for the service
+      - name: Build Docker image
+        run: docker build -t car_service:latest .

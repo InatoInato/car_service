@@ -16,6 +16,7 @@ func New(logger *slog.Logger, carService *service.CarService) *chi.Mux {
 
     // Fixed: Passed the service dependency
     carHandler := handler.NewCarHandler(carService)
+    healthHandler := handler.NewHealthHandler()
 
     r.Route("/cars", func(r chi.Router) {
         r.Post("/", carHandler.Create)       // Missing POST
@@ -24,6 +25,8 @@ func New(logger *slog.Logger, carService *service.CarService) *chi.Mux {
         r.Put("/{id}", carHandler.Update)    // Missing PUT
         r.Delete("/{id}", carHandler.Delete) // Missing DELETE
     })
+
+    r.Get("/health", healthHandler.Health) // Missing health check endpoint
 
     return r
 }
