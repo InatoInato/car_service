@@ -1,125 +1,223 @@
 # Car Service
 
-A cloud-native REST API for managing cars, written in Go.
+A production-style REST API for managing cars, built with Go.
 
-This project is built as a production-style backend service without using an ORM. The goal is to focus on clean architecture, SQL, Docker, and cloud deployment rather than business complexity.
+The project focuses on backend engineering fundamentals rather than business logic, including clean architecture, SQL-first development, Docker, database migrations, testing, and cloud deployment.
 
-## Tech Stack
-
-* Go
-* Chi Router
-* PostgreSQL
-* pgx
-* Redis
-* Docker & Docker Compose
-* golang-migrate
+---
 
 ## Features
 
-* REST API
-* CRUD operations for cars
-* PostgreSQL storage
-* Redis caching
-* Graceful shutdown
-* Environment-based configuration
-* Structured JSON logging
-* Docker support
+- RESTful CRUD API
+- PostgreSQL with pgx
+- SQL-first development using sqlc
+- Database migrations with golang-migrate
+- Docker & Docker Compose
+- Structured JSON logging
+- Graceful shutdown
+- Environment-based configuration
+- Unit tests
+- GitHub Actions CI
+- Health check endpoint
+
+---
+
+## Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| Go | Backend |
+| Chi | HTTP Router |
+| PostgreSQL | Database |
+| pgx | PostgreSQL Driver |
+| sqlc | Type-safe SQL generation |
+| golang-migrate | Database migrations |
+| Docker | Containerization |
+| GitHub Actions | Continuous Integration |
+
+---
 
 ## Project Structure
 
 ```text
-cmd/            Application entrypoint
-internal/       Application source code
-migrations/     Database migrations
-docker/         Dockerfiles
-docs/           Documentation
-scripts/        Helper scripts
-tests/          Tests
+.
+├── cmd/
+│   └── car_service/
+├── database/
+│   ├── migrations/
+│   └── queries/
+├── internal/
+│   ├── config/
+│   ├── db/
+│   ├── handler/
+│   ├── middleware/
+│   ├── service/
+│   └── router.go
+├── tests/
+├── Dockerfile
+├── docker-compose.yml
+├── sqlc.yaml
+└── README.md
 ```
+
+---
 
 ## API
 
-| Method | Endpoint     | Description     |
-| ------ | ------------ | --------------- |
-| GET    | `/health`    | Health check    |
-| GET    | `/cars`      | List cars       |
-| POST   | `/cars`      | Create a car    |
-| GET    | `/cars/{id}` | Get a car by ID |
-| PUT    | `/cars/{id}` | Update a car    |
-| DELETE | `/cars/{id}` | Delete a car    |
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/cars` | List all cars |
+| GET | `/cars/{id}` | Get car by ID |
+| POST | `/cars` | Create car |
+| PUT | `/cars/{id}` | Update car |
+| DELETE | `/cars/{id}` | Delete car |
 
-## Running Locally
+---
 
-Clone the repository:
+## Quick Start
+
+Clone the repository.
 
 ```bash
-git clone https://github.com/<your-github>/car-service.git
-cd car-service
+git clone https://github.com/InatoInato/car_service.git
+cd car_service
 ```
 
-Start the application:
+Start the application.
 
 ```bash
 docker compose up --build
 ```
 
-Or run the API directly:
+The API will be available at
+
+```
+http://localhost:8080
+```
+
+Health check
 
 ```bash
-go run ./cmd/api
+curl http://localhost:8080/health
 ```
+
+Create a car
+
+```bash
+curl -X POST http://localhost:8080/cars \
+-H "Content-Type: application/json" \
+-d '{
+  "brand":"BMW",
+  "model":"X5",
+  "production_year":2023,
+  "color":"Blue",
+  "price":42000
+}'
+```
+
+---
 
 ## Configuration
 
-Application settings are provided through environment variables.
+Configuration is provided through environment variables.
 
-Create a `.env` file from `.env.example` before starting the service.
+Create a local configuration file before running the application.
 
-## Development Roadmap
+```bash
+cp .env.example .env
+```
 
-* [x] Project boilerplate
-* [ ] Configuration
-* [ ] HTTP server
-* [ ] PostgreSQL integration
-* [ ] Redis integration
-* [ ] CRUD API
-* [ ] Validation
-* [ ] Logging middleware
-* [ ] Unit tests
-* [ ] Integration tests
-* [ ] CI/CD with GitHub Actions
-* [ ] AWS deployment
-* [ ] Kubernetes
+---
+
+## Running Tests
+
+Run all unit tests.
+
+```bash
+go test ./...
+```
+
+Run formatting checks.
+
+```bash
+gofmt -w .
+go vet ./...
+```
+
+---
+
+## CI
+
+Every push and pull request automatically runs:
+
+- Go formatting
+- go vet
+- Unit tests
+- Application build
+- Docker image build
+
+---
 
 ## Architecture
 
 ```
-Client
-   │
-HTTP API
-   │
-Handlers
-   │
-Services
-   │
-Repositories
-   │
-PostgreSQL
-
-Redis (Cache)
+             HTTP Request
+                  │
+                  ▼
+            Chi Router
+                  │
+                  ▼
+             Handlers
+                  │
+                  ▼
+             Services
+                  │
+                  ▼
+           sqlc Queries
+                  │
+                  ▼
+             PostgreSQL
 ```
 
-## Goals
+---
 
-This project is intended to demonstrate:
+## Roadmap
 
-* Clean Architecture principles
-* Production-ready Go practices
-* SQL without an ORM
-* Docker-based development
-* Cloud-native application design
-* AWS deployment workflow
+- [x] REST API
+- [x] PostgreSQL
+- [x] sqlc
+- [x] Docker
+- [x] Docker Compose
+- [x] Database migrations
+- [x] Structured logging
+- [x] Graceful shutdown
+- [x] Unit tests
+- [x] GitHub Actions CI
+- [ ] Redis cache
+- [ ] Integration tests
+- [ ] Docker health checks
+- [ ] Deployment to AWS EC2
+- [ ] Terraform infrastructure
+- [ ] Kubernetes deployment
+
+---
+
+## Learning Goals
+
+This project is built to practice production-oriented backend engineering:
+
+- Clean Architecture
+- SQL-first development
+- Containerization
+- Database migrations
+- Automated testing
+- CI/CD
+- Cloud deployment
+- Infrastructure as Code
+
+---
 
 ## License
 
-This project is available for educational and learning purposes.
+This project is intended for educational and portfolio purposes.
