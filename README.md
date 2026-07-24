@@ -196,7 +196,7 @@ Every push and pull request automatically runs:
 - [x] GitHub Actions CI
 - [ ] Redis cache
 - [ ] Integration tests
-- [ ] Docker health checks
+- [x] Docker health checks
 - [ ] Deployment to AWS EC2
 - [ ] Terraform infrastructure
 - [ ] Kubernetes deployment
