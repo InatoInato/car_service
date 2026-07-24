@@ -38,7 +38,6 @@ services:
 
     restart: "no"
 
-
   car_service:
     build: .
     container_name: car-service
@@ -46,6 +45,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
     environment:
       POSTGRES_HOST: postgres
