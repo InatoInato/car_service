@@ -1,0 +1,14 @@
+.git
+.github
+.vscode
+.idea
+
+README.md
+
+tests/
+
+*.log
+
+coverage.out
+
+bin/
