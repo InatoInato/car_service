@@ -184,22 +184,45 @@ Every push and pull request automatically runs:
 
 ## Roadmap
 
+## Roadmap
+
+### Application Foundation
 - [x] REST API
 - [x] PostgreSQL
 - [x] sqlc
-- [x] Docker
-- [x] Docker Compose
 - [x] Database migrations
 - [x] Structured logging
 - [x] Graceful shutdown
-- [x] Unit tests
-- [x] GitHub Actions CI
-- [ ] Redis cache
-- [ ] Integration tests
+- [x] Configuration validation
+- [x] Request ID middleware
+
+### Containerization
+- [x] Docker
+- [x] Docker Compose
 - [x] Docker health checks
+
+### Testing & Quality
+- [x] Unit tests
+- [x] Integration tests
+- [x] GitHub Actions CI
+
+### Application Features
+- [ ] Redis cache
+- [ ] Pagination
+- [ ] OpenAPI / Swagger
+
+### Deployment
 - [ ] Deployment to AWS EC2
+- [ ] GitHub Actions CD
+
+### Infrastructure
 - [ ] Terraform infrastructure
-- [ ] Kubernetes deployment
+
+### Observability
+- [ ] Metrics (/metrics with Prometheus)
+
+### Orchestration
+- [ ] Kubernetes
 
 ---
 
