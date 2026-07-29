@@ -40,78 +40,65 @@ func (m *mockCarStore) DeleteCar(ctx context.Context, id uuid.UUID) error {
 func TestCreateCar(t *testing.T) {
 	store := &mockCarStore{
 		createFn: func(ctx context.Context, arg db.CreateCarParams) (db.Car, error) {
-
 			if arg.Brand != "BMW" {
 				t.Fatal("brand not passed")
 			}
-
 			return db.Car{
-				ID: arg.ID,
+				ID:    arg.ID,
 				Brand: arg.Brand,
 			}, nil
 		},
 	}
 
-	svc := NewCarService(store)
+	svc := NewCarService(store, nil)
 
 	car, err := svc.CreateCar(context.Background(), db.CreateCarParams{
-		ID: uuid.New(),
+		ID:    uuid.New(),
 		Brand: "BMW",
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if car.Brand != "BMW" {
 		t.Fatal("unexpected brand")
 	}
 }
 
 func TestGetCarByID(t *testing.T) {
-
 	id := uuid.New()
 
 	store := &mockCarStore{
 		getFn: func(ctx context.Context, uid uuid.UUID) (db.Car, error) {
-
 			if uid != id {
 				t.Fatal("wrong id")
 			}
-
 			return db.Car{
-				ID: id,
+				ID:    id,
 				Brand: "Honda",
 			}, nil
 		},
 	}
 
-	svc := NewCarService(store)
+	svc := NewCarService(store, nil)
 
 	car, err := svc.GetCarByID(context.Background(), id)
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if car.ID != id {
 		t.Fatal("wrong car")
 	}
 }
 
 func TestListCars(t *testing.T) {
-
 	store := &mockCarStore{
 		listFn: func(ctx context.Context, arg db.ListCarsParams) ([]db.Car, error) {
-
 			if arg.Limit != 20 {
 				t.Fatal("wrong limit")
 			}
-
 			if arg.Offset != 0 {
 				t.Fatal("wrong offset")
 			}
-
 			return []db.Car{
 				{Brand: "BMW"},
 				{Brand: "Audi"},
@@ -119,52 +106,43 @@ func TestListCars(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store)
+	svc := NewCarService(store, nil)
 
 	cars, err := svc.ListCars(context.Background(), 20, 0)
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if len(cars) != 2 {
 		t.Fatal("expected 2 cars")
 	}
 }
 
 func TestUpdateCar(t *testing.T) {
-
 	store := &mockCarStore{
 		updateFn: func(ctx context.Context, arg db.UpdateCarParams) (db.Car, error) {
-
 			arg.Brand = "Mercedes"
-
 			return db.Car{
-				ID: arg.ID,
+				ID:    arg.ID,
 				Brand: arg.Brand,
 			}, nil
 		},
 	}
 
-	svc := NewCarService(store)
+	svc := NewCarService(store, nil)
 
 	id := uuid.New()
-
 	car, err := svc.UpdateCar(context.Background(), db.UpdateCarParams{
 		ID: id,
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if car.Brand != "Mercedes" {
 		t.Fatal("update failed")
 	}
 }
 
 func TestDeleteCar(t *testing.T) {
-
 	called := false
 
 	store := &mockCarStore{
@@ -174,31 +152,27 @@ func TestDeleteCar(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store)
+	svc := NewCarService(store, nil)
 
 	err := svc.DeleteCar(context.Background(), uuid.New())
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if !called {
 		t.Fatal("delete wasn't called")
 	}
 }
 
 func TestCreateCar_Error(t *testing.T) {
-
 	store := &mockCarStore{
 		createFn: func(ctx context.Context, arg db.CreateCarParams) (db.Car, error) {
 			return db.Car{}, errors.New("db error")
 		},
 	}
 
-	svc := NewCarService(store)
+	svc := NewCarService(store, nil)
 
 	_, err := svc.CreateCar(context.Background(), db.CreateCarParams{})
-
 	if err == nil {
 		t.Fatal("expected error")
 	}
