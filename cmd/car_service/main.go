@@ -89,7 +89,7 @@ func main() {
 	}
 
 	queries := db.New(dbPool)
-	carService := service.NewCarService(queries, rdb)
+	carService := service.NewCarService(queries, rdb, logger)
 	r := router.New(logger, carService)
 
 	server := &http.Server{

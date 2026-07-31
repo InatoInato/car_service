@@ -203,11 +203,11 @@ Every push and pull request automatically runs:
 
 ### Testing & Quality
 - [x] Unit tests
-- [x] Integration tests
+- [ ] Integration tests
 - [x] GitHub Actions CI
 
 ### Application Features
-- [ ] Redis cache
+- [x] Redis cache
 - [ ] Pagination
 - [ ] OpenAPI / Swagger
 

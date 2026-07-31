@@ -64,6 +64,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DATABASE: cars
       POSTGRES_SSLMODE: disable
+      REDIS_ADDR: redis:6379
 
     ports:
       - "8080:8080"

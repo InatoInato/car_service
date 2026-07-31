@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/InatoInato/car_service.git/internal/db"
@@ -20,14 +21,20 @@ type CarStore interface {
 }
 
 type CarService struct {
-	store CarStore
-	redis *redis.Client
+	store  CarStore
+	redis  *redis.Client
+	logger *slog.Logger
 }
 
-func NewCarService(store CarStore, redis *redis.Client) *CarService {
+func NewCarService(store CarStore, redis *redis.Client, logger *slog.Logger) *CarService {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return &CarService{
-		store: store,
-		redis: redis,
+		store:  store,
+		redis:  redis,
+		logger: logger,
 	}
 }
 
@@ -44,27 +51,38 @@ func (s *CarService) GetCarByID(
 ) (db.Car, error) {
 	key := fmt.Sprintf("cars:%s", id.String())
 
-	// 1. Try Redis cache hit
 	if s.redis != nil {
 		val, err := s.redis.Get(ctx, key).Result()
-		if err == nil {
+		switch err {
+		case nil:
 			var car db.Car
 			if err := json.Unmarshal([]byte(val), &car); err == nil {
+				s.logger.Info("redis cache hit", "key", key)
 				return car, nil
+			} else {
+				s.logger.Warn("failed to unmarshal redis cache value", "key", key, "error", err)
 			}
+		case redis.Nil:
+			s.logger.Info("redis cache miss", "key", key)
+		default:
+			s.logger.Warn("redis cache read failed", "key", key, "error", err)
 		}
 	}
 
-	// 2. Cache miss: Query PostgreSQL
 	car, err := s.store.GetCarByID(ctx, id)
 	if err != nil {
 		return db.Car{}, err
 	}
 
-	// 3. Save to Redis with 10 minute TTL
 	if s.redis != nil {
 		if data, err := json.Marshal(car); err == nil {
-			s.redis.Set(ctx, key, data, 10*time.Minute)
+			if err := s.redis.Set(ctx, key, data, 10*time.Minute).Err(); err != nil {
+				s.logger.Warn("redis cache write failed", "key", key, "error", err)
+			} else {
+				s.logger.Info("redis cache write", "key", key, "ttl", 10*time.Minute)
+			}
+		} else {
+			s.logger.Warn("failed to marshal redis cache value", "key", key, "error", err)
 		}
 	}
 
@@ -91,10 +109,13 @@ func (s *CarService) UpdateCar(
 		return db.Car{}, err
 	}
 
-	// Invalidate old cache
 	if s.redis != nil {
 		key := fmt.Sprintf("cars:%s", car.ID.String())
-		s.redis.Del(ctx, key)
+		if err := s.redis.Del(ctx, key).Err(); err != nil {
+			s.logger.Warn("redis cache invalidation failed", "key", key, "error", err)
+		} else {
+			s.logger.Info("redis cache invalidated", "key", key)
+		}
 	}
 
 	return car, nil
@@ -108,10 +129,13 @@ func (s *CarService) DeleteCar(
 		return err
 	}
 
-	// Invalidate old cache
 	if s.redis != nil {
 		key := fmt.Sprintf("cars:%s", id.String())
-		s.redis.Del(ctx, key)
+		if err := s.redis.Del(ctx, key).Err(); err != nil {
+			s.logger.Warn("redis cache invalidation failed", "key", key, "error", err)
+		} else {
+			s.logger.Info("redis cache invalidated", "key", key)
+		}
 	}
 
 	return nil

@@ -50,7 +50,7 @@ func TestCreateCar(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil)
+	svc := NewCarService(store, nil, nil)
 
 	car, err := svc.CreateCar(context.Background(), db.CreateCarParams{
 		ID:    uuid.New(),
@@ -79,7 +79,7 @@ func TestGetCarByID(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil)
+	svc := NewCarService(store, nil, nil)
 
 	car, err := svc.GetCarByID(context.Background(), id)
 	if err != nil {
@@ -106,7 +106,7 @@ func TestListCars(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil)
+	svc := NewCarService(store, nil, nil)
 
 	cars, err := svc.ListCars(context.Background(), 20, 0)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestUpdateCar(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil)
+	svc := NewCarService(store, nil, nil)
 
 	id := uuid.New()
 	car, err := svc.UpdateCar(context.Background(), db.UpdateCarParams{
@@ -152,7 +152,7 @@ func TestDeleteCar(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil)
+	svc := NewCarService(store, nil, nil)
 
 	err := svc.DeleteCar(context.Background(), uuid.New())
 	if err != nil {
@@ -170,7 +170,7 @@ func TestCreateCar_Error(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil)
+	svc := NewCarService(store, nil, nil)
 
 	_, err := svc.CreateCar(context.Background(), db.CreateCarParams{})
 	if err == nil {
