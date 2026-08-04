@@ -16,6 +16,7 @@ import (
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	_ "github.com/InatoInato/car_service.git/docs"
 )
 
 func main() {

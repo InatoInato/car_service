@@ -7,6 +7,7 @@ import (
 	"github.com/InatoInato/car_service.git/internal/middleware"
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/go-chi/chi/v5"
+    httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func New(logger *slog.Logger, carService *service.CarService) *chi.Mux {
@@ -27,6 +28,9 @@ func New(logger *slog.Logger, carService *service.CarService) *chi.Mux {
     })
 
     r.Get("/health", healthHandler.Health) // Missing health check endpoint
+
+    r.Get("/ping", healthHandler.Ping)
+    r.Get("/swagger/*", httpSwagger.WrapHandler)
 
     return r
 }
