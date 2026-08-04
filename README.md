@@ -203,7 +203,7 @@ Every push and pull request automatically runs:
 
 ### Testing & Quality
 - [x] Unit tests
-- [ ] Integration tests
+- [x] Integration tests
 - [x] GitHub Actions CI
 
 ### Application Features
