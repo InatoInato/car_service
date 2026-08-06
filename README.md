@@ -75,6 +75,18 @@ The project focuses on backend engineering fundamentals rather than business log
 
 ---
 
+## Swagger
+
+After starting the service, open [Swagger UI](http://localhost:8080/swagger/index.html). It documents the health, ping, and car CRUD endpoints.
+
+To document a new endpoint, add Swag annotations above its handler and regenerate the spec with the project-pinned generator version:
+
+```bash
+go run github.com/swaggo/swag/cmd/swag@v1.8.1 init -g cmd/car_service/main.go -o docs
+```
+
+---
+
 ## Quick Start
 
 Clone the repository.
@@ -209,7 +221,7 @@ Every push and pull request automatically runs:
 ### Application Features
 - [x] Redis cache
 - [ ] Pagination
-- [ ] OpenAPI / Swagger
+- [x] OpenAPI / Swagger
 
 ### Deployment
 - [ ] Deployment to AWS EC2

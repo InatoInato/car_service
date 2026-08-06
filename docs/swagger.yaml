@@ -1,6 +1,204 @@
+basePath: /
+definitions:
+  dto.CarResponse:
+    properties:
+      brand:
+        example: BMW
+        type: string
+      color:
+        example: Blue
+        type: string
+      created_at:
+        example: "2026-08-06T12:00:00Z"
+        type: string
+      id:
+        example: 23b12e8b-3995-4910-9a7b-55cda03ade9f
+        type: string
+      model:
+        example: X5
+        type: string
+      price:
+        example: 49500
+        type: number
+      production_year:
+        example: 2023
+        type: integer
+      updated_at:
+        example: "2026-08-06T12:00:00Z"
+        type: string
+    type: object
+  dto.CreateCarRequest:
+    properties:
+      brand:
+        example: BMW
+        type: string
+      color:
+        example: Blue
+        type: string
+      model:
+        example: X5
+        type: string
+      price:
+        example: 49500
+        type: number
+      production_year:
+        example: 2023
+        type: integer
+    type: object
+  dto.ErrorResponse:
+    properties:
+      error:
+        example: car not found
+        type: string
+    type: object
 info:
   contact: {}
+  description: API for managing cars.
+  title: Car Service API
+  version: "1.0"
 paths:
+  /cars:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.CarResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: List cars
+      tags:
+      - Cars
+    post:
+      consumes:
+      - application/json
+      description: Creates a new car in the database.
+      parameters:
+      - description: Car data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateCarRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CarResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Create car
+      tags:
+      - Cars
+  /cars/{id}:
+    delete:
+      parameters:
+      - description: Car UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Delete car
+      tags:
+      - Cars
+    get:
+      parameters:
+      - description: Car UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CarResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Get car
+      tags:
+      - Cars
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Car UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated car
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateCarRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CarResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Update car
+      tags:
+      - Cars
+  /health:
+    get:
+      description: Reports whether the service is running.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - System
   /ping:
     get:
       description: Simple ping endpoint

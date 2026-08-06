@@ -10,15 +10,19 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/InatoInato/car_service.git/docs"
 	router "github.com/InatoInato/car_service.git/internal"
 	"github.com/InatoInato/car_service.git/internal/config"
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
-	_ "github.com/InatoInato/car_service.git/docs"
 )
 
+// @title Car Service API
+// @version 1.0
+// @description API for managing cars.
+// @BasePath /
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 

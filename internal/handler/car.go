@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/InatoInato/car_service.git/internal/db"
+	"github.com/InatoInato/car_service.git/internal/handler/dto"
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -22,16 +24,20 @@ func NewCarHandler(service *service.CarService) *CarHandler {
 	return &CarHandler{service: service}
 }
 
-type CreateCarRequest struct {
-	Brand          string      `json:"brand"`
-	Model          string      `json:"model"`
-	ProductionYear int16       `json:"production_year"`
-	Color          string      `json:"color"`
-	Price          json.Number `json:"price"`
-}
-
+// Create creates a new car.
+//
+// @Summary      Create car
+// @Description  Creates a new car in the database.
+// @Tags         Cars
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.CreateCarRequest true "Car data"
+// @Success      201 {object} dto.CarResponse
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
+// @Router       /cars [post]
 func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req CreateCarRequest
+	var req dto.CreateCarRequest
 
 	decoder := json.NewDecoder(r.Body)
 	decoder.UseNumber()
@@ -55,6 +61,16 @@ func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusCreated, car)
 }
 
+// GetByID returns a car by ID.
+//
+// @Summary      Get car
+// @Tags         Cars
+// @Produce      json
+// @Param        id path string true "Car UUID"
+// @Success      200 {object} dto.CarResponse
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      404 {object} dto.ErrorResponse
+// @Router       /cars/{id} [get]
 func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idParam)
@@ -76,6 +92,14 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, car)
 }
 
+// List returns all cars.
+//
+// @Summary      List cars
+// @Tags         Cars
+// @Produce      json
+// @Success      200 {array} dto.CarResponse
+// @Failure      500 {object} dto.ErrorResponse
+// @Router       /cars [get]
 func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
 	cars, err := h.service.ListCars(r.Context(), 20, 0)
 	if err != nil {
@@ -85,6 +109,18 @@ func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, cars)
 }
 
+// Update updates a car.
+//
+// @Summary      Update car
+// @Tags         Cars
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Car UUID"
+// @Param        request body dto.CreateCarRequest true "Updated car"
+// @Success      200 {object} dto.CarResponse
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      404 {object} dto.ErrorResponse
+// @Router       /cars/{id} [put]
 func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idParam)
@@ -93,7 +129,7 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var payload CreateCarRequest
+	var payload dto.CreateCarRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
@@ -129,7 +165,7 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, car)
 }
 
-func createCarParams(req CreateCarRequest) (db.CreateCarParams, error) {
+func createCarParams(req dto.CreateCarRequest) (db.CreateCarParams, error) {
 	price, err := numericPrice(req.Price)
 	if err != nil {
 		return db.CreateCarParams{}, err
@@ -148,14 +184,23 @@ func createCarParams(req CreateCarRequest) (db.CreateCarParams, error) {
 	}, nil
 }
 
-func numericPrice(price json.Number) (pgtype.Numeric, error) {
+func numericPrice(price float64) (pgtype.Numeric, error) {
 	var numeric pgtype.Numeric
-	if err := numeric.Scan(price.String()); err != nil {
+	if err := numeric.Scan(strconv.FormatFloat(price, 'f', -1, 64)); err != nil {
 		return pgtype.Numeric{}, err
 	}
 	return numeric, nil
 }
 
+// Delete removes a car.
+//
+// @Summary      Delete car
+// @Tags         Cars
+// @Param        id path string true "Car UUID"
+// @Success      204
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
+// @Router       /cars/{id} [delete]
 func (h *CarHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idParam)
