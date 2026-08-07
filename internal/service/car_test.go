@@ -13,6 +13,7 @@ type mockCarStore struct {
 	createFn func(context.Context, db.CreateCarParams) (db.Car, error)
 	getFn    func(context.Context, uuid.UUID) (db.Car, error)
 	listFn   func(context.Context, db.ListCarsParams) ([]db.Car, error)
+	countFn  func(context.Context) (int64, error)
 	updateFn func(context.Context, db.UpdateCarParams) (db.Car, error)
 	deleteFn func(context.Context, uuid.UUID) error
 }
@@ -27,6 +28,10 @@ func (m *mockCarStore) GetCarByID(ctx context.Context, id uuid.UUID) (db.Car, er
 
 func (m *mockCarStore) ListCars(ctx context.Context, arg db.ListCarsParams) ([]db.Car, error) {
 	return m.listFn(ctx, arg)
+}
+
+func (m *mockCarStore) CountCars(ctx context.Context) (int64, error) {
+	return m.countFn(ctx)
 }
 
 func (m *mockCarStore) UpdateCar(ctx context.Context, arg db.UpdateCarParams) (db.Car, error) {
@@ -104,16 +109,22 @@ func TestListCars(t *testing.T) {
 				{Brand: "Audi"},
 			}, nil
 		},
+		countFn: func(ctx context.Context) (int64, error) {
+			return 2, nil
+		},
 	}
 
 	svc := NewCarService(store, nil, nil)
 
-	cars, err := svc.ListCars(context.Background(), 20, 0)
+	cars, total, err := svc.ListCars(context.Background(), 20, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(cars) != 2 {
 		t.Fatal("expected 2 cars")
+	}
+	if total != 2 {
+		t.Fatalf("expected total 2, got %d", total)
 	}
 }
 

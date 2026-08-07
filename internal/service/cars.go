@@ -16,6 +16,7 @@ type CarStore interface {
 	CreateCar(ctx context.Context, arg db.CreateCarParams) (db.Car, error)
 	GetCarByID(ctx context.Context, id uuid.UUID) (db.Car, error)
 	ListCars(ctx context.Context, arg db.ListCarsParams) ([]db.Car, error)
+	CountCars(ctx context.Context) (int64, error)
 	UpdateCar(ctx context.Context, arg db.UpdateCarParams) (db.Car, error)
 	DeleteCar(ctx context.Context, id uuid.UUID) error
 }
@@ -93,11 +94,21 @@ func (s *CarService) ListCars(
 	ctx context.Context,
 	limit int32,
 	offset int32,
-) ([]db.Car, error) {
-	return s.store.ListCars(ctx, db.ListCarsParams{
+) ([]db.Car, int64, error) {
+	cars, err := s.store.ListCars(ctx, db.ListCarsParams{
 		Limit:  limit,
 		Offset: offset,
 	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total, err := s.store.CountCars(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return cars, total, nil
 }
 
 func (s *CarService) UpdateCar(

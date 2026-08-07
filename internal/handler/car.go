@@ -101,12 +101,45 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /cars [get]
 func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
-	cars, err := h.service.ListCars(r.Context(), 20, 0)
+	page := 1
+	limit := 20
+
+	if value := r.URL.Query().Get("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			h.writeError(w, http.StatusBadRequest, "invalid page")
+			return
+		}
+		page = parsed
+	}
+
+	if value := r.URL.Query().Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			h.writeError(w, http.StatusBadRequest, "limit must be between 1 and 100")
+			return
+		}
+		limit = parsed
+	}
+
+	offset := (page - 1) * limit
+
+	cars, total, err := h.service.ListCars(
+		r.Context(),
+		int32(limit),
+		int32(offset),
+	)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "failed to fetch cars")
 		return
 	}
-	h.writeJSON(w, http.StatusOK, cars)
+
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"data":  cars,
+		"page":  page,
+		"limit": limit,
+		"total": total,
+	})
 }
 
 // Update updates a car.
