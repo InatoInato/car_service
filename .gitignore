@@ -1,5 +1,5 @@
 .env
-.deployment/terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
+deployment/terraform/.terraform/
+deployment/terraform/*.tfstate
+deployment/terraform/*.tfstate.*
+deployment/terraform/*.tfvars
