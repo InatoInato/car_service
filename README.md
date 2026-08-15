@@ -220,7 +220,7 @@ Every push and pull request automatically runs:
 
 ### Application Features
 - [x] Redis cache
-- [ ] Pagination
+- [x] Pagination
 - [x] OpenAPI / Swagger
 
 ### Deployment
@@ -228,7 +228,7 @@ Every push and pull request automatically runs:
 - [ ] GitHub Actions CD
 
 ### Infrastructure
-- [ ] Terraform infrastructure
+- [x] Terraform infrastructure
 
 ### Observability
 - [ ] Metrics (/metrics with Prometheus)
