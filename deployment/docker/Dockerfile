@@ -12,7 +12,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 \
     go build \
     -ldflags="-s -w" \
@@ -36,9 +37,9 @@ RUN apk add --no-cache ca-certificates wget && \
 WORKDIR /app
 
 COPY --from=builder \
-        --chown=appuser:appgroup \
-        /app/car_service \
-        /app/car_service
+    --chown=appuser:appgroup \
+    /app/car_service \
+    /app/car_service
 
 USER appuser
 

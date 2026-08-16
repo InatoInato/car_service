@@ -1,14 +1,15 @@
 .git
 .github
-.vscode
+
+.env
+.env.*
+
 .idea
+.vscode
+
+deployment/terraform/.terraform
+deployment/terraform/*.tfstate
+deployment/terraform/*.tfstate.*
+deployment/terraform/*.tfvars
 
 README.md
-
-tests/
-
-*.log
-
-coverage.out
-
-bin/
