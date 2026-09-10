@@ -170,6 +170,15 @@ Run all unit tests.
 go test ./...
 ```
 
+Run the HTTP and PostgreSQL integration tests against the Docker Compose stack.
+
+```bash
+docker compose up -d --build
+go test -tags=integration ./test -run Integration -count=1
+```
+
+Set `CAR_SERVICE_BASE_URL` to test another running instance.
+
 Run formatting checks.
 
 ```bash
