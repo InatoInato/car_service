@@ -67,11 +67,31 @@ The project focuses on backend engineering fundamentals rather than business log
 | Method | Endpoint | Description |
 |---------|----------|-------------|
 | GET | `/health` | Health check |
-| GET | `/cars` | List all cars |
+| GET | `/cars` | List and filter cars |
 | GET | `/cars/{id}` | Get car by ID |
 | POST | `/cars` | Create car |
 | PUT | `/cars/{id}` | Update car |
 | DELETE | `/cars/{id}` | Delete car |
+
+### Filtering cars
+
+`GET /cars` accepts these optional query parameters:
+
+| Parameter | Meaning |
+|-----------|---------|
+| `name` | Case-insensitive partial match against brand, model, or both |
+| `year` | Exact production year (`production_year` is also accepted) |
+| `created_from`, `created_to` | Inclusive creation-time range in RFC3339 format |
+| `created_at` | Exact creation time in RFC3339 format |
+| `min_price`, `max_price` | Inclusive price range |
+| `price` | Exact price |
+| `page`, `limit` | Pagination; limit is between 1 and 100 |
+
+Example:
+
+```bash
+curl "http://localhost:8080/cars?name=BMW&year=2023&created_from=2026-01-01T00:00:00Z&min_price=30000&max_price=60000"
+```
 
 ---
 

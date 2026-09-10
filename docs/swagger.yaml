@@ -51,6 +51,22 @@ definitions:
         example: car not found
         type: string
     type: object
+  dto.ListCarsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.CarResponse'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 42
+        type: integer
+    type: object
 info:
   contact: {}
   description: API for managing cars.
@@ -59,15 +75,72 @@ info:
 paths:
   /cars:
     get:
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - description: Case-insensitive brand or model search
+        in: query
+        name: name
+        type: string
+      - description: Exact production year
+        in: query
+        maximum: 2100
+        minimum: 1886
+        name: year
+        type: integer
+      - description: Alias for year
+        in: query
+        maximum: 2100
+        minimum: 1886
+        name: production_year
+        type: integer
+      - description: Created at or after (RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: Created at or before (RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: Exact creation time (RFC3339)
+        in: query
+        name: created_at
+        type: string
+      - description: Minimum price
+        in: query
+        minimum: 0
+        name: min_price
+        type: number
+      - description: Maximum price
+        in: query
+        minimum: 0
+        name: max_price
+        type: number
+      - description: Exact price
+        in: query
+        minimum: 0
+        name: price
+        type: number
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/dto.CarResponse'
-            type: array
+            $ref: '#/definitions/dto.ListCarsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -114,7 +187,7 @@ paths:
         type: string
       responses:
         "204":
-          description: No Content
+          description: ""
         "400":
           description: Bad Request
           schema:

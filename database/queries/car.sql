@@ -39,6 +39,23 @@ FROM cars
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
 
+-- name: FilterCars :many
+SELECT id, brand, model, production_year, color, price, created_at, updated_at
+FROM cars
+WHERE (
+    sqlc.arg('name')::text = ''
+    OR STRPOS(LOWER(brand), LOWER(sqlc.arg('name')::text)) > 0
+    OR STRPOS(LOWER(model), LOWER(sqlc.arg('name')::text)) > 0
+    OR STRPOS(LOWER(CONCAT_WS(' ', brand, model)), LOWER(sqlc.arg('name')::text)) > 0
+)
+AND (sqlc.narg('year')::smallint IS NULL OR production_year = sqlc.narg('year')::smallint)
+AND (sqlc.narg('created_from')::timestamptz IS NULL OR created_at >= sqlc.narg('created_from')::timestamptz)
+AND (sqlc.narg('created_to')::timestamptz IS NULL OR created_at <= sqlc.narg('created_to')::timestamptz)
+AND (sqlc.narg('min_price')::numeric IS NULL OR price >= sqlc.narg('min_price')::numeric)
+AND (sqlc.narg('max_price')::numeric IS NULL OR price <= sqlc.narg('max_price')::numeric)
+ORDER BY created_at DESC
+LIMIT sqlc.arg('limit_count') OFFSET sqlc.arg('offset_count');
+
 -- name: UpdateCar :one
 UPDATE cars
 SET
@@ -65,3 +82,18 @@ SELECT EXISTS (
 -- name: CountCars :one
 SELECT COUNT(*)
 FROM cars;
+
+-- name: CountFilteredCars :one
+SELECT COUNT(*)
+FROM cars
+WHERE (
+    sqlc.arg('name')::text = ''
+    OR STRPOS(LOWER(brand), LOWER(sqlc.arg('name')::text)) > 0
+    OR STRPOS(LOWER(model), LOWER(sqlc.arg('name')::text)) > 0
+    OR STRPOS(LOWER(CONCAT_WS(' ', brand, model)), LOWER(sqlc.arg('name')::text)) > 0
+)
+AND (sqlc.narg('year')::smallint IS NULL OR production_year = sqlc.narg('year')::smallint)
+AND (sqlc.narg('created_from')::timestamptz IS NULL OR created_at >= sqlc.narg('created_from')::timestamptz)
+AND (sqlc.narg('created_to')::timestamptz IS NULL OR created_at <= sqlc.narg('created_to')::timestamptz)
+AND (sqlc.narg('min_price')::numeric IS NULL OR price >= sqlc.narg('min_price')::numeric)
+AND (sqlc.narg('max_price')::numeric IS NULL OR price <= sqlc.narg('max_price')::numeric);

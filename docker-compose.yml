@@ -62,7 +62,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DATABASE: cars
+      POSTGRES_DB: cars
       POSTGRES_SSLMODE: disable
       REDIS_ADDR: redis:6379
 

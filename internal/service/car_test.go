@@ -7,15 +7,18 @@ import (
 
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type mockCarStore struct {
-	createFn func(context.Context, db.CreateCarParams) (db.Car, error)
-	getFn    func(context.Context, uuid.UUID) (db.Car, error)
-	listFn   func(context.Context, db.ListCarsParams) ([]db.Car, error)
-	countFn  func(context.Context) (int64, error)
-	updateFn func(context.Context, db.UpdateCarParams) (db.Car, error)
-	deleteFn func(context.Context, uuid.UUID) error
+	createFn        func(context.Context, db.CreateCarParams) (db.Car, error)
+	getFn           func(context.Context, uuid.UUID) (db.Car, error)
+	listFn          func(context.Context, db.ListCarsParams) ([]db.Car, error)
+	countFn         func(context.Context) (int64, error)
+	filterFn        func(context.Context, db.FilterCarsParams) ([]db.Car, error)
+	countFilteredFn func(context.Context, db.CountFilteredCarsParams) (int64, error)
+	updateFn        func(context.Context, db.UpdateCarParams) (db.Car, error)
+	deleteFn        func(context.Context, uuid.UUID) error
 }
 
 func (m *mockCarStore) CreateCar(ctx context.Context, arg db.CreateCarParams) (db.Car, error) {
@@ -32,6 +35,14 @@ func (m *mockCarStore) ListCars(ctx context.Context, arg db.ListCarsParams) ([]d
 
 func (m *mockCarStore) CountCars(ctx context.Context) (int64, error) {
 	return m.countFn(ctx)
+}
+
+func (m *mockCarStore) FilterCars(ctx context.Context, arg db.FilterCarsParams) ([]db.Car, error) {
+	return m.filterFn(ctx, arg)
+}
+
+func (m *mockCarStore) CountFilteredCars(ctx context.Context, arg db.CountFilteredCarsParams) (int64, error) {
+	return m.countFilteredFn(ctx, arg)
 }
 
 func (m *mockCarStore) UpdateCar(ctx context.Context, arg db.UpdateCarParams) (db.Car, error) {
@@ -125,6 +136,36 @@ func TestListCars(t *testing.T) {
 	}
 	if total != 2 {
 		t.Fatalf("expected total 2, got %d", total)
+	}
+}
+
+func TestFilterCars(t *testing.T) {
+	store := &mockCarStore{
+		filterFn: func(ctx context.Context, arg db.FilterCarsParams) ([]db.Car, error) {
+			if arg.Name != "bmw" || !arg.Year.Valid || arg.Year.Int16 != 2023 {
+				t.Fatal("filters were not passed to the store")
+			}
+			return []db.Car{{Brand: "BMW"}}, nil
+		},
+		countFilteredFn: func(ctx context.Context, arg db.CountFilteredCarsParams) (int64, error) {
+			if arg.Name != "bmw" || !arg.Year.Valid || arg.Year.Int16 != 2023 {
+				t.Fatal("filters were not passed to the count query")
+			}
+			return 1, nil
+		},
+	}
+
+	svc := NewCarService(store, nil, nil)
+	params := db.FilterCarsParams{
+		Name: "bmw",
+		Year: pgtype.Int2{Int16: 2023, Valid: true},
+	}
+	cars, total, err := svc.FilterCars(context.Background(), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cars) != 1 || total != 1 {
+		t.Fatalf("expected one filtered car, got %d cars and total %d", len(cars), total)
 	}
 }
 

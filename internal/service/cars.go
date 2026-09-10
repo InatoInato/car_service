@@ -21,6 +21,11 @@ type CarStore interface {
 	DeleteCar(ctx context.Context, id uuid.UUID) error
 }
 
+type FilteredCarStore interface {
+	FilterCars(ctx context.Context, arg db.FilterCarsParams) ([]db.Car, error)
+	CountFilteredCars(ctx context.Context, arg db.CountFilteredCarsParams) (int64, error)
+}
+
 type CarService struct {
 	store  CarStore
 	redis  *redis.Client
@@ -104,6 +109,35 @@ func (s *CarService) ListCars(
 	}
 
 	total, err := s.store.CountCars(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return cars, total, nil
+}
+
+func (s *CarService) FilterCars(
+	ctx context.Context,
+	params db.FilterCarsParams,
+) ([]db.Car, int64, error) {
+	store, ok := s.store.(FilteredCarStore)
+	if !ok {
+		return nil, 0, fmt.Errorf("car store does not support filtering")
+	}
+
+	cars, err := store.FilterCars(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total, err := store.CountFilteredCars(ctx, db.CountFilteredCarsParams{
+		Name:        params.Name,
+		Year:        params.Year,
+		CreatedFrom: params.CreatedFrom,
+		CreatedTo:   params.CreatedTo,
+		MinPrice:    params.MinPrice,
+		MaxPrice:    params.MaxPrice,
+	})
 	if err != nil {
 		return nil, 0, err
 	}

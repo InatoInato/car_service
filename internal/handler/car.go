@@ -3,8 +3,10 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/InatoInato/car_service.git/internal/db"
@@ -54,7 +56,7 @@ func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	car, err := h.service.CreateCar(r.Context(), params)
 	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, err.Error())
+		h.writeError(w, http.StatusInternalServerError, "failed to create car")
 		return
 	}
 
@@ -85,7 +87,7 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusNotFound, "car not found")
 			return
 		}
-		h.writeError(w, http.StatusInternalServerError, err.Error())
+		h.writeError(w, http.StatusInternalServerError, "failed to fetch car")
 		return
 	}
 
@@ -97,38 +99,29 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Summary      List cars
 // @Tags         Cars
 // @Produce      json
-// @Success      200 {array} dto.CarResponse
+// @Param        page query int false "Page number" minimum(1)
+// @Param        limit query int false "Items per page" minimum(1) maximum(100)
+// @Param        name query string false "Case-insensitive brand or model search"
+// @Param        year query int false "Exact production year" minimum(1886) maximum(2100)
+// @Param        production_year query int false "Alias for year" minimum(1886) maximum(2100)
+// @Param        created_from query string false "Created at or after (RFC3339)"
+// @Param        created_to query string false "Created at or before (RFC3339)"
+// @Param        created_at query string false "Exact creation time (RFC3339)"
+// @Param        min_price query number false "Minimum price" minimum(0)
+// @Param        max_price query number false "Maximum price" minimum(0)
+// @Param        price query number false "Exact price" minimum(0)
+// @Success      200 {object} dto.ListCarsResponse
+// @Failure      400 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /cars [get]
 func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
-	page := 1
-	limit := 20
-
-	if value := r.URL.Query().Get("page"); value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil || parsed < 1 {
-			h.writeError(w, http.StatusBadRequest, "invalid page")
-			return
-		}
-		page = parsed
+	params, page, limit, err := listCarsParams(r)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
-	if value := r.URL.Query().Get("limit"); value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil || parsed < 1 || parsed > 100 {
-			h.writeError(w, http.StatusBadRequest, "limit must be between 1 and 100")
-			return
-		}
-		limit = parsed
-	}
-
-	offset := (page - 1) * limit
-
-	cars, total, err := h.service.ListCars(
-		r.Context(),
-		int32(limit),
-		int32(offset),
-	)
+	cars, total, err := h.service.FilterCars(r.Context(), params)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "failed to fetch cars")
 		return
@@ -140,6 +133,139 @@ func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
 		"limit": limit,
 		"total": total,
 	})
+}
+
+func listCarsParams(r *http.Request) (db.FilterCarsParams, int, int, error) {
+	const maxInt32 = int64(1<<31 - 1)
+
+	query := r.URL.Query()
+	page := 1
+	limit := 20
+
+	if value := query.Get("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			return db.FilterCarsParams{}, 0, 0, errors.New("invalid page")
+		}
+		page = parsed
+	}
+
+	if value := query.Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			return db.FilterCarsParams{}, 0, 0, errors.New("limit must be between 1 and 100")
+		}
+		limit = parsed
+	}
+
+	if int64(page-1) > maxInt32/int64(limit) {
+		return db.FilterCarsParams{}, 0, 0, errors.New("page is too large")
+	}
+
+	params := db.FilterCarsParams{
+		Name:        strings.TrimSpace(query.Get("name")),
+		LimitCount:  int32(limit),
+		OffsetCount: int32((page - 1) * limit),
+	}
+
+	yearValue := firstQueryValue(r, "year", "production_year")
+	if yearValue != "" {
+		year, err := strconv.ParseInt(yearValue, 10, 16)
+		if err != nil || year < 1886 || year > 2100 {
+			return db.FilterCarsParams{}, 0, 0, errors.New("year must be between 1886 and 2100")
+		}
+		params.Year = pgtype.Int2{Int16: int16(year), Valid: true}
+	}
+
+	createdFromValue := query.Get("created_from")
+	createdToValue := query.Get("created_to")
+	exactCreatedValue := firstQueryValue(r, "created_at", "created_time")
+	if exactCreatedValue != "" {
+		if createdFromValue != "" || createdToValue != "" {
+			return db.FilterCarsParams{}, 0, 0, errors.New("created_at cannot be combined with created_from or created_to")
+		}
+		createdFromValue = exactCreatedValue
+		createdToValue = exactCreatedValue
+	}
+
+	createdFrom, err := timestampFilter(createdFromValue)
+	if err != nil {
+		return db.FilterCarsParams{}, 0, 0, errors.New("created_from must be an RFC3339 timestamp")
+	}
+	createdTo, err := timestampFilter(createdToValue)
+	if err != nil {
+		return db.FilterCarsParams{}, 0, 0, errors.New("created_to must be an RFC3339 timestamp")
+	}
+	if createdFrom.Valid && createdTo.Valid && createdFrom.Time.After(createdTo.Time) {
+		return db.FilterCarsParams{}, 0, 0, errors.New("created_from must not be after created_to")
+	}
+	params.CreatedFrom = createdFrom
+	params.CreatedTo = createdTo
+
+	minPriceValue := query.Get("min_price")
+	maxPriceValue := query.Get("max_price")
+	exactPriceValue := query.Get("price")
+	if exactPriceValue != "" {
+		if minPriceValue != "" || maxPriceValue != "" {
+			return db.FilterCarsParams{}, 0, 0, errors.New("price cannot be combined with min_price or max_price")
+		}
+		minPriceValue = exactPriceValue
+		maxPriceValue = exactPriceValue
+	}
+
+	minPrice, minPriceNumber, err := priceFilter(minPriceValue)
+	if err != nil {
+		return db.FilterCarsParams{}, 0, 0, errors.New("min_price must be a non-negative number")
+	}
+	maxPrice, maxPriceNumber, err := priceFilter(maxPriceValue)
+	if err != nil {
+		return db.FilterCarsParams{}, 0, 0, errors.New("max_price must be a non-negative number")
+	}
+	if minPrice.Valid && maxPrice.Valid && minPriceNumber > maxPriceNumber {
+		return db.FilterCarsParams{}, 0, 0, errors.New("min_price must not be greater than max_price")
+	}
+	params.MinPrice = minPrice
+	params.MaxPrice = maxPrice
+
+	return params, page, limit, nil
+}
+
+func firstQueryValue(r *http.Request, keys ...string) string {
+	for _, key := range keys {
+		if value := r.URL.Query().Get(key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func timestampFilter(value string) (pgtype.Timestamptz, error) {
+	if value == "" {
+		return pgtype.Timestamptz{}, nil
+	}
+
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return pgtype.Timestamptz{}, err
+	}
+	return pgtype.Timestamptz{Time: parsed, Valid: true}, nil
+}
+
+func priceFilter(value string) (pgtype.Numeric, float64, error) {
+	if value == "" {
+		return pgtype.Numeric{}, 0, nil
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || parsed < 0 || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return pgtype.Numeric{}, 0, errors.New("invalid price")
+	}
+
+	var numeric pgtype.Numeric
+	if err := numeric.Scan(value); err != nil {
+		return pgtype.Numeric{}, 0, err
+	}
+	return numeric, parsed, nil
 }
 
 // Update updates a car.

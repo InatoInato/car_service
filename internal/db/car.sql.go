@@ -39,6 +39,45 @@ func (q *Queries) CountCars(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countFilteredCars = `-- name: CountFilteredCars :one
+SELECT COUNT(*)
+FROM cars
+WHERE (
+    $1::text = ''
+    OR STRPOS(LOWER(brand), LOWER($1::text)) > 0
+    OR STRPOS(LOWER(model), LOWER($1::text)) > 0
+    OR STRPOS(LOWER(CONCAT_WS(' ', brand, model)), LOWER($1::text)) > 0
+)
+AND ($2::smallint IS NULL OR production_year = $2::smallint)
+AND ($3::timestamptz IS NULL OR created_at >= $3::timestamptz)
+AND ($4::timestamptz IS NULL OR created_at <= $4::timestamptz)
+AND ($5::numeric IS NULL OR price >= $5::numeric)
+AND ($6::numeric IS NULL OR price <= $6::numeric)
+`
+
+type CountFilteredCarsParams struct {
+	Name        string             `json:"name"`
+	Year        pgtype.Int2        `json:"year"`
+	CreatedFrom pgtype.Timestamptz `json:"created_from"`
+	CreatedTo   pgtype.Timestamptz `json:"created_to"`
+	MinPrice    pgtype.Numeric     `json:"min_price"`
+	MaxPrice    pgtype.Numeric     `json:"max_price"`
+}
+
+func (q *Queries) CountFilteredCars(ctx context.Context, arg CountFilteredCarsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countFilteredCars,
+		arg.Name,
+		arg.Year,
+		arg.CreatedFrom,
+		arg.CreatedTo,
+		arg.MinPrice,
+		arg.MaxPrice,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCar = `-- name: CreateCar :one
 INSERT INTO cars (
     id,
@@ -106,6 +145,73 @@ WHERE id = $1
 func (q *Queries) DeleteCar(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteCar, id)
 	return err
+}
+
+const filterCars = `-- name: FilterCars :many
+SELECT id, brand, model, production_year, color, price, created_at, updated_at
+FROM cars
+WHERE (
+    $1::text = ''
+    OR STRPOS(LOWER(brand), LOWER($1::text)) > 0
+    OR STRPOS(LOWER(model), LOWER($1::text)) > 0
+    OR STRPOS(LOWER(CONCAT_WS(' ', brand, model)), LOWER($1::text)) > 0
+)
+AND ($2::smallint IS NULL OR production_year = $2::smallint)
+AND ($3::timestamptz IS NULL OR created_at >= $3::timestamptz)
+AND ($4::timestamptz IS NULL OR created_at <= $4::timestamptz)
+AND ($5::numeric IS NULL OR price >= $5::numeric)
+AND ($6::numeric IS NULL OR price <= $6::numeric)
+ORDER BY created_at DESC
+LIMIT $8 OFFSET $7
+`
+
+type FilterCarsParams struct {
+	Name        string             `json:"name"`
+	Year        pgtype.Int2        `json:"year"`
+	CreatedFrom pgtype.Timestamptz `json:"created_from"`
+	CreatedTo   pgtype.Timestamptz `json:"created_to"`
+	MinPrice    pgtype.Numeric     `json:"min_price"`
+	MaxPrice    pgtype.Numeric     `json:"max_price"`
+	OffsetCount int32              `json:"offset_count"`
+	LimitCount  int32              `json:"limit_count"`
+}
+
+func (q *Queries) FilterCars(ctx context.Context, arg FilterCarsParams) ([]Car, error) {
+	rows, err := q.db.Query(ctx, filterCars,
+		arg.Name,
+		arg.Year,
+		arg.CreatedFrom,
+		arg.CreatedTo,
+		arg.MinPrice,
+		arg.MaxPrice,
+		arg.OffsetCount,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Car{}
+	for rows.Next() {
+		var i Car
+		if err := rows.Scan(
+			&i.ID,
+			&i.Brand,
+			&i.Model,
+			&i.ProductionYear,
+			&i.Color,
+			&i.Price,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCarByID = `-- name: GetCarByID :one

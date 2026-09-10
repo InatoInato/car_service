@@ -19,6 +19,13 @@ type CarResponse struct {
 	UpdatedAt      string  `json:"updated_at" example:"2026-08-06T12:00:00Z"`
 }
 
+type ListCarsResponse struct {
+	Data  []CarResponse `json:"data"`
+	Page  int           `json:"page" example:"1"`
+	Limit int           `json:"limit" example:"20"`
+	Total int64         `json:"total" example:"42"`
+}
+
 type ErrorResponse struct {
 	Error string `json:"error" example:"car not found"`
 }

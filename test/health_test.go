@@ -1,20 +1,24 @@
 package test
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	router "github.com/InatoInato/car_service.git/internal"
 )
 
 func TestHealth(t *testing.T) {
-	waitForServer(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := router.New(logger, nil)
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	recorder := httptest.NewRecorder()
 
-	resp, err := http.Get(baseURL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
+	handler.ServeHTTP(recorder, request)
 
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
 	}
 }
