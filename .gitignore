@@ -3,3 +3,6 @@ deployment/terraform/.terraform/
 deployment/terraform/*.tfstate
 deployment/terraform/*.tfstate.*
 deployment/terraform/*.tfvars
+deployment/terraform/*.tfvars.json
+deployment/terraform/*.tfplan
+deployment/terraform/backend.hcl

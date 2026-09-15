@@ -1,0 +1,6 @@
+aws_region       = "us-east-1"
+instance_type    = "t2.micro"
+ssh_public_key   = "REPLACE_WITH_YOUR_SSH_PUBLIC_KEY"
+ami_id           = "ami-REPLACE_ME"
+subnet_id        = "subnet-REPLACE_ME"
+allowed_ssh_cidr = "REPLACE_WITH_YOUR_PUBLIC_IPV4/32"

@@ -1,7 +1,11 @@
 data "aws_ami" "ubuntu" {
-  most_recent = true
-
   owners = ["099720109477"]
+
+  # An explicit ID prevents a new Ubuntu release from replacing the server.
+  filter {
+    name   = "image-id"
+    values = [var.ami_id]
+  }
 
   filter {
     name   = "name"
@@ -14,10 +18,8 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-data "http" "my_ip" {
-  url = "https://checkip.amazonaws.com"
+data "aws_subnet" "car_service" {
+  id = var.subnet_id
 }
 
-locals {
-  my_cidr = "${chomp(data.http.my_ip.response_body)}/32"
-}
+data "aws_partition" "current" {}
