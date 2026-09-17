@@ -14,6 +14,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -43,14 +44,37 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
-      - name: Run tests
-        run: go test ./...
+      - name: Run unit and handler tests with race detection
+        run: go test -race -count=1 -timeout=2m ./...
 
       - name: Build application
         run: go build ./cmd/car_service
 
+  concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Start isolated test databases and migrations
+        run: |
+          docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml up -d --wait --wait-timeout 120 postgres redis
+          docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml run --rm migrate
+      - name: Concurrent API tests with race detection
+        run: go test -race -tags=integration,load ./test -run '^TestConcurrent' -count=1 -timeout=2m -v
+      - name: Bounded load smoke test
+        run: go test -tags=integration,load ./test -run '^TestLoadCars$' -count=1 -timeout=2m -v
+      - name: Database diagnostics on failure
+        if: failure()
+        run: docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml logs --no-color --tail=100
+      - name: Stop test dependencies
+        if: always()
+        run: docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml down -v
+
   publish:
-    needs: test
+    needs: [test, concurrency]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

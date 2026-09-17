@@ -1,71 +1,55 @@
 # Car Service
 
-A production-style REST API for managing cars, built with Go.
+A REST API for managing cars, written in Go.
 
-The project focuses on backend engineering fundamentals rather than business logic, including clean architecture, SQL-first development, Docker, database migrations, testing, and cloud deployment.
-
----
-
-## Features
-
-- RESTful CRUD API
-- PostgreSQL with pgx
-- SQL-first development using sqlc
-- Database migrations with golang-migrate
-- Docker & Docker Compose
-- Structured JSON logging
-- Graceful shutdown
-- Environment-based configuration
-- Unit tests
-- GitHub Actions CI
-- Health check endpoint
-
----
+The business logic is deliberately boring — the point of this project is everything around it: clean architecture, SQL-first development, migrations, Docker, testing, CI, and deploying the thing to real infrastructure.
 
 ## Tech Stack
 
 | Technology | Purpose |
 |------------|---------|
 | Go | Backend |
-| Chi | HTTP Router |
+| Chi | HTTP router |
 | PostgreSQL | Database |
-| pgx | PostgreSQL Driver |
+| pgx | Postgres driver |
 | sqlc | Type-safe SQL generation |
-| golang-migrate | Database migrations |
+| golang-migrate | Migrations |
+| Redis | Caching |
 | Docker | Containerization |
-| GitHub Actions | Continuous Integration |
+| Terraform | Infrastructure as code |
+| GitHub Actions | CI |
 
----
+## Quick Start
 
-## Project Structure
-
-```text
-.
-├── cmd/
-│   └── car_service/
-├── database/
-│   ├── migrations/
-│   └── queries/
-├── internal/
-│   ├── config/
-│   ├── db/
-│   ├── handler/
-│   ├── middleware/
-│   ├── service/
-│   └── router.go
-├── tests/
-├── Dockerfile
-├── docker-compose.yml
-├── sqlc.yaml
-└── README.md
+```bash
+git clone https://github.com/InatoInato/car_service.git
+cd car_service
+cp .env.example .env
+docker compose up --build
 ```
 
----
+The API comes up on `http://localhost:8080`.
+
+```bash
+curl http://localhost:8080/health
+
+curl -X POST http://localhost:8080/cars \
+  -H "Content-Type: application/json" \
+  -d '{
+    "brand": "BMW",
+    "model": "X5",
+    "production_year": 2023,
+    "color": "Blue",
+    "price": 42000
+  }'
+```
+
+Swagger UI is at [`/swagger/index.html`](http://localhost:8080/swagger/index.html).
 
 ## API
 
 | Method | Endpoint | Description |
-|---------|----------|-------------|
+|--------|----------|-------------|
 | GET | `/health` | Health check |
 | GET | `/cars` | List and filter cars |
 | GET | `/cars/{id}` | Get car by ID |
@@ -73,141 +57,139 @@ The project focuses on backend engineering fundamentals rather than business log
 | PUT | `/cars/{id}` | Update car |
 | DELETE | `/cars/{id}` | Delete car |
 
-### Filtering cars
+### Filtering
 
-`GET /cars` accepts these optional query parameters:
+`GET /cars` takes these optional query parameters:
 
 | Parameter | Meaning |
 |-----------|---------|
-| `name` | Case-insensitive partial match against brand, model, or both |
-| `year` | Exact production year (`production_year` is also accepted) |
-| `created_from`, `created_to` | Inclusive creation-time range in RFC3339 format |
-| `created_at` | Exact creation time in RFC3339 format |
+| `name` | Case-insensitive partial match on brand, model, or both |
+| `year` | Exact production year (`production_year` also works) |
+| `created_from`, `created_to` | Inclusive RFC3339 creation range |
+| `created_at` | Exact creation time, RFC3339 |
 | `min_price`, `max_price` | Inclusive price range |
 | `price` | Exact price |
-| `page`, `limit` | Pagination; limit is between 1 and 100 |
-
-Example:
+| `page`, `limit` | Pagination; `limit` is 1–100 |
 
 ```bash
-curl "http://localhost:8080/cars?name=BMW&year=2023&created_from=2026-01-01T00:00:00Z&min_price=30000&max_price=60000"
+curl "http://localhost:8080/cars?name=BMW&year=2023&min_price=30000&max_price=60000"
 ```
 
----
+## Project Structure
 
-## Swagger
+```text
+.
+├── cmd/car_service/       # entrypoint
+├── database/
+│   ├── migrations/
+│   └── queries/           # sqlc source
+├── deployment/
+│   ├── docker/
+│   └── terraform/
+├── internal/
+│   ├── config/
+│   ├── db/
+│   ├── handler/
+│   ├── middleware/
+│   ├── service/
+│   └── router.go
+├── test/
+├── Dockerfile
+├── docker-compose.yml
+└── sqlc.yaml
+```
 
-After starting the service, open [Swagger UI](http://localhost:8080/swagger/index.html). It documents the health, ping, and car CRUD endpoints.
+Request flow:
 
-To document a new endpoint, add Swag annotations above its handler and regenerate the spec with the project-pinned generator version:
+```
+HTTP → Chi Router → Handler → Service → sqlc Queries → PostgreSQL
+```
+
+## Testing
+
+Unit and handler tests. No Docker needed:
 
 ```bash
-go run github.com/swaggo/swag/cmd/swag@v1.8.1 init -g cmd/car_service/main.go -o docs
+go test -race -count=1 -timeout=2m ./...
 ```
 
----
+The handler tests run the real router and service against a stub database, covering
+success paths, field mapping, malformed JSON, bad IDs and filters, 404s, DB failures,
+error response bodies, and context propagation. They don't add validation rules of
+their own.
 
-## Quick Start
-
-Clone the repository.
-
-```bash
-git clone https://github.com/InatoInato/car_service.git
-cd car_service
-```
-
-Start the application.
-
-```bash
-docker compose up --build
-```
-
-The API will be available at
-
-```
-http://localhost:8080
-```
-
-Health check
-
-```bash
-curl http://localhost:8080/health
-```
-
-Create a car
-
-```bash
-curl -X POST http://localhost:8080/cars \
--H "Content-Type: application/json" \
--d '{
-  "brand":"BMW",
-  "model":"X5",
-  "production_year":2023,
-  "color":"Blue",
-  "price":42000
-}'
-```
-
----
-
-## Configuration
-
-Configuration is provided through environment variables.
-
-Create a local configuration file before running the application.
-
-```bash
-cp .env.example .env
-```
-
----
-
-## Running Tests
-
-Run all unit tests.
-
-```bash
-go test ./...
-```
-
-Run the HTTP and PostgreSQL integration tests against the Docker Compose stack.
+Integration tests against the Compose stack:
 
 ```bash
 docker compose up -d --build
 go test -tags=integration ./test -run Integration -count=1
 ```
 
-Set `CAR_SERVICE_BASE_URL` to test another running instance.
+Point them at another instance with `CAR_SERVICE_BASE_URL`.
 
-Run formatting checks.
+### Concurrency and load
+
+These use a separate stack on `127.0.0.1:15432` (Postgres) and `127.0.0.1:16379`
+(Redis) with its own database — your dev data is safe. Keep those ports free.
 
 ```bash
-gofmt -w .
+docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml \
+  up -d --wait --wait-timeout 120 postgres redis
+docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml \
+  run --rm migrate
+
+# Concurrent handlers/service/Postgres/Redis under the race detector
+go test -race -tags=integration,load ./test -run '^TestConcurrent' -count=1 -timeout=2m -v
+
+# Load, without race-detector overhead
+go test -tags=integration,load ./test -run '^TestLoadCars$' -count=1 -timeout=2m -v
+
+# Bigger local sample
+LOAD_WORKERS=16 LOAD_ITERATIONS=100 \
+  go test -tags=integration,load ./test -run '^TestLoadCars$' -count=1 -timeout=2m -v
+
+# Tear down (keeps volumes)
+docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml down
+```
+
+The load harness starts the real router in-process on an ephemeral port, so the race
+detector instruments server code. `CAR_SERVICE_BASE_URL` is ignored here. Each worker
+owns its own car and cleans up only its own fixtures.
+
+Default run: 8 workers × 25 iterations × (1 update + 2 reads + 1 filtered list) = 800
+measured requests. Setup and teardown happen outside the measurement. Output is request
+count, errors, req/s, and p50/p95/p99. Any HTTP or correctness error fails the test.
+
+Two caveats worth knowing:
+
+- These tests don't promise cache linearizability. There's a known stale-cache
+  interleaving that still needs a real fix plus a regression test.
+- No latency threshold is enforced, because shared CI runners are noisy. Set a baseline
+  on fixed hardware first. This is a smoke test, not a capacity or soak test.
+
+Lint:
+
+```bash
+gofmt -l .
 go vet ./...
 ```
 
----
-
 ## CI
 
-Every push and pull request automatically runs:
+Every push and PR runs gofmt, `go vet`, race-enabled unit/handler tests, the concurrent
+API tests, the default load smoke test, then builds the binary and the Docker image.
 
-- Go formatting
-- go vet
-- Unit tests
-- Application build
-- Docker image build
+Pushes to `main` additionally publish an amd64 image to `ghcr.io/<owner>/<repository>`,
+tagged `latest` and with the commit SHA. The workflow lives in `.github/workflows/ci.yml`.
 
----
+## Deployment
 
-## AWS setup
+The AWS setup is one small EC2 instance. SSH and port 8080 are open only to a single IP
+you choose. **The API has no authentication**, so keep that rule narrow.
 
-This setup uses a small EC2 server. SSH and port 8080 are open only to your chosen
-IP address. The API still has no login system, so keep this rule narrow.
+### 1. Variables
 
-### 1. Choose fixed settings
-
-Use Terraform 1.10 or newer. Create `deployment/terraform/terraform.tfvars`:
+Terraform 1.10+. Create `deployment/terraform/terraform.tfvars`:
 
 ```hcl
 aws_region       = "us-east-1"
@@ -215,123 +197,103 @@ instance_type    = "t2.micro"
 ssh_public_key   = "YOUR SSH PUBLIC KEY"
 ami_id           = "ami-REPLACE_ME"
 subnet_id        = "subnet-REPLACE_ME"
-allowed_ssh_cidr = "YOUR.PUBLIC.IP.ADDRESS/32"
+allowed_ssh_cidr = "YOUR.PUBLIC.IP/32"
 ```
 
-Replace all placeholders. Never put a private SSH key here.
+Never put a private key in here.
 
-For an existing EC2 server, copy its current AMI ID and subnet ID from the EC2
-console. This avoids an unwanted replacement. For a new server, choose a Canonical
-Ubuntu 22.04 amd64 image and a public subnet in your region. The subnet must have
-a route to an Internet Gateway. The security group uses that subnet's VPC.
+For an **existing** instance, copy its current AMI and subnet ID from the EC2 console —
+guessing here triggers a replacement. For a **new** one, pick a Canonical Ubuntu 22.04
+amd64 image and a public subnet with an Internet Gateway route. The security group is
+created in that subnet's VPC.
 
-Use your real public IPv4 address with `/32`. When your IP changes, update this
-value yourself. Terraform no longer reads the IP of a laptop or CI runner.
+`allowed_ssh_cidr` must be your real public IPv4 with `/32`. Terraform no longer detects
+it automatically, so update it yourself when your IP changes.
 
-### 2. Initialize Terraform (no S3 needed)
+These values are account-specific, which is why there are no defaults. Start from
+`deployment/terraform/terraform.tfvars.example`.
 
-Run commands from the repository root. Terraform stores its resource record locally
-in `deployment/terraform/terraform.tfstate`. Keep a private backup and run Terraform
-from the same checkout. Do not commit state or run simultaneous applies from other computers.
+### 2. Init
+
+State is local, in `deployment/terraform/terraform.tfstate` — no S3 bucket needed. Keep a
+private backup, always run from the same checkout, and don't run concurrent applies from
+another machine.
 
 ```bash
 terraform -chdir=deployment/terraform init
+aws sts get-caller-identity   # confirm the right account
 ```
 
-If you previously used a working remote backend, back up its state and use
-`init -migrate-state` to copy it locally. Do not discard existing state or use
-`-reconfigure` to bypass migration. A previously failed S3 initialization does
-not require a bucket now.
+Migrating from a working remote backend? Back it up and use `init -migrate-state`. Don't
+use `-reconfigure` to skip the migration.
 
-Use AWS credentials through your normal AWS CLI profile or role. Check them with:
-
-```bash
-aws sts get-caller-identity
-```
-
-The required AMI, subnet, SSH key and public IP are account/user-specific; Terraform
-cannot safely invent them. Merge the fields in `deployment/terraform/terraform.tfvars.example`
-into your existing `terraform.tfvars`, preserving any existing server's AMI and subnet.
-
-### 3. Check the plan before applying
+### 3. Plan, then apply
 
 ```bash
 terraform -chdir=deployment/terraform validate
 terraform -chdir=deployment/terraform test
 terraform -chdir=deployment/terraform plan -out=deploy.tfplan
-# Review the plan before creating AWS resources:
 terraform -chdir=deployment/terraform apply deploy.tfplan
 ```
 
-The tests use a fake AWS provider. They do not create resources or test a live server.
+The tests run against a fake AWS provider — nothing is created and no live server is
+touched.
 
-Check the AWS account, region, IP rule, and any changes to the server or disk.
-If the plan says the server must be replaced, stop. Check the AMI and subnet IDs.
-Do not remove `prevent_destroy` just to make the plan pass.
+Read the plan before applying. Check the account, region, IP rule, and anything touching
+the instance or its volume. **If the plan wants to replace the server, stop** and recheck
+your AMI and subnet IDs. Don't delete `prevent_destroy` to make it go through.
 
-The code keeps the existing resource names. It also adds a snapshot policy and
-an IAM role used by AWS to create backups. Your Terraform operator needs permission
-to create that role, attach its policy, pass it to DLM, and create a DLM policy.
+Besides the existing resources, this creates a DLM snapshot policy and the IAM role AWS
+uses to run it. Your operator needs permission to create that role, attach its policy,
+pass it to DLM, and create the DLM policy itself.
 
-### 4. Understand disk protection and backups
+### 4. Backups
 
-Terraform blocks server replacement. AWS termination protection also blocks an
-accidental termination request. The root disk is kept if you later choose to remove
-these protections and terminate the server. Retaining a disk does not attach it to
-a new server automatically, and it does not protect against manual disk deletion.
+Protection is layered: Terraform blocks replacement, AWS termination protection blocks
+accidental terminate calls, and the root volume is retained if you ever remove both and
+terminate anyway. Retaining a volume doesn't attach it to anything automatically, and
+none of this stops a manual volume deletion.
 
-AWS DLM schedules a snapshot each day at 03:00 UTC and keeps the last seven
-snapshots. The `Backup = "car-service-daily"` tag selects the disk. Use this tag only
-for this stack. Snapshots and retained disks have storage costs. A snapshot is not
-available immediately after the first apply; check for a completed snapshot in EC2.
+DLM snapshots the volume tagged `Backup = "car-service-daily"` every day at 03:00 UTC and
+keeps the last seven. Use that tag only for this stack. Snapshots and retained volumes
+cost money. The first snapshot won't exist immediately after apply — check EC2 for a
+completed one.
 
-These are disk snapshots, not PostgreSQL logical backups. To test recovery, create
-a separate disk from a snapshot, attach it to a test server in the same Availability
-Zone, and start a compatible PostgreSQL version using the recovered data. Never
-format the recovered disk. Check the car records and API before trusting the backup.
-Do not change or overwrite the live database during this test. One snapshot per day
-can lose up to about one day of data; backup failures can make that gap longer.
+These are **disk** snapshots, not logical Postgres backups. Daily snapshots mean up to
+~24h of data loss, more if a backup silently fails. To actually test recovery: create a
+new volume from a snapshot, attach it to a test instance in the same AZ, start a
+compatible Postgres version on it, and check the car records through the API. Never
+format the recovered volume, and never point the test at the live database.
 
-### 5. Update existing servers on purpose
+### 5. Updating an existing instance
 
-`user_data.sh` runs on first boot. Terraform ignores later changes to this field,
-so editing the script does not stop a running server. To update an existing host,
-review the script and run it during a planned maintenance period. It may restart
-Docker. Deploy the app, its environment, and its migrations separately.
+`user_data.sh` only runs on first boot, and Terraform ignores later changes to it. Editing
+the script does nothing to a running host. To apply changes, review the script and run it
+during a maintenance window — it may restart Docker. App code, environment, and migrations
+are deployed separately.
 
-### 6. Files to keep safe
+### 6. Running the app on EC2
 
-Do not edit state files or `.terraform.lock.hcl` by hand. Commit the lock file.
-Keep state backups, saved plans, credentials, and `terraform.tfvars` out of Git.
-Keep the Ubuntu image, CPU architecture, and bootstrap script compatible.
-
-References: [Terraform local state](https://developer.hashicorp.com/terraform/language/backend/local)
-and [AWS snapshot policies](https://docs.aws.amazon.com/ebs/latest/userguide/snapshot-lifecycle.html).
-
-### 7. Start the application on EC2
-
-Terraform installs Docker on the server; application startup is the next step.
-SSH to the output IP with your private key, then wait for setup:
+Terraform installs Docker; starting the app is a separate step. SSH in with your private
+key:
 
 ```bash
 sudo cloud-init status --wait
 docker info
 ```
 
-Clone this repository on the server (or copy your checkout there). From its root,
-create the environment file once; preserve it on subsequent deployments:
+Clone the repo (or copy your checkout) and create the env file once:
 
 ```bash
 cp -n deployment/docker/.env.example deployment/docker/.env
 openssl rand -hex 24
 ```
 
-Edit `deployment/docker/.env`: replace `POSTGRES_PASSWORD` with the generated hex
-value. Keep `POSTGRES_USER=postgres` and `POSTGRES_DB=cars` for this setup. Use a
-URL-safe password because the migration connection string is a URL. Changing this
-file later does not change the password in an already initialized database.
+Put that hex value in `POSTGRES_PASSWORD`. Keep `POSTGRES_USER=postgres` and
+`POSTGRES_DB=cars`. Use a URL-safe password — the migration connection string is a URL.
+Changing this file later won't change the password of an already-initialized database.
 
-Build and start from this checkout (works without a registry image):
+Build and start:
 
 ```bash
 APP_IMAGE=car-service:local docker compose --env-file deployment/docker/.env \
@@ -339,30 +301,16 @@ APP_IMAGE=car-service:local docker compose --env-file deployment/docker/.env \
 curl --fail http://localhost:8080/health
 ```
 
-PostgreSQL starts first, migrations create/update the tables, and then the app
-starts. Compose sets `POSTGRES_HOST=postgres` and `REDIS_ADDR=redis:6379` automatically.
-The database and Redis have no published host ports. On your laptop, access
-`http://EC2_PUBLIC_IP:8080/health` from the IP allowed by `allowed_ssh_cidr`.
+Postgres starts first, migrations run, then the app. Compose sets `POSTGRES_HOST=postgres`
+and `REDIS_ADDR=redis:6379` for you. Neither Postgres nor Redis publishes a host port. From
+your laptop, hit `http://EC2_PUBLIC_IP:8080/health` from the IP in `allowed_ssh_cidr`.
 
-For updates, pull the intended code revision and rerun the same Compose command.
-Keep the same directory/project name so Compose reuses the database volume.
-`docker compose ... down` keeps data; adding `-v` deletes it.
+To deploy an update, pull the revision you want and rerun the same command. Keep the same
+project/directory name so Compose reuses the database volume. `down` keeps your data;
+`down -v` deletes it.
 
-### 8. CI images and troubleshooting
-
-Deployment fixes: local Terraform state removes the S3 requirement; production
-Compose runs migrations before the app, overrides container connection addresses,
-and supports building locally. Both Docker healthchecks use GET (the old HEAD
-request returned 405 and incorrectly marked the app unhealthy).
-
-The workflow now lives in `.github/workflows/ci.yml`. Pull requests run Go checks;
-pushes to `main` also publish an amd64 image to `ghcr.io/<owner>/<repository>`, tagged
-with `latest` and the commit SHA. This only runs after the changes are pushed to GitHub.
-
-To avoid building on the small EC2 instance, set `APP_IMAGE` in the production
-`.env` to the published image with its commit SHA. If the package is private,
-authenticate on the server using `docker login ghcr.io` with a token that can read
-the package (or make the package public). Then, from the matching code checkout:
+To avoid building on a `t2.micro`, set `APP_IMAGE` in the production `.env` to the
+published image at a specific commit SHA, then:
 
 ```bash
 docker compose --env-file deployment/docker/.env \
@@ -371,7 +319,19 @@ docker compose --env-file deployment/docker/.env \
   -f deployment/docker/docker-compose.prod.yml up -d --no-build --wait
 ```
 
-When startup fails, inspect the app and migration output:
+If the GHCR package is private, `docker login ghcr.io` on the server with a read-capable
+token, or make the package public.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---------|-------|
+| `init` asks for an S3 bucket | You're on the old configuration |
+| `plan` prompts for variables | `terraform.tfvars` is incomplete |
+| Docker missing on EC2 | Check `sudo tail -100 /var/log/user-data.log` |
+| App marked unhealthy | Both healthchecks use GET now; HEAD used to return 405 |
+
+Container logs:
 
 ```bash
 docker compose --env-file deployment/docker/.env \
@@ -380,27 +340,14 @@ docker compose --env-file deployment/docker/.env \
   -f deployment/docker/docker-compose.prod.yml logs --tail=100 app migrate postgres
 ```
 
-If `init` asks for an S3 bucket, you are using the old configuration. If `plan`
-asks for variables, finish `terraform.tfvars`. If Docker is unavailable on EC2,
-check `sudo tail -100 /var/log/user-data.log`.
+### What's actually been verified
 
-Local checks from the repository root:
+Locally: Terraform init/validate, all six mocked Terraform tests, Go tests and vet, a fresh
+migration run, healthy production containers, and the HTTP CRUD/filter integration tests.
 
-```bash
-go test ./...
-go vet ./...
-terraform -chdir=deployment/terraform validate
-terraform -chdir=deployment/terraform test
-# With the application running on port 8080:
-go test -tags=integration ./test -count=1
-```
+Not yet done: a real EC2 apply, and publishing an image from GitHub Actions.
 
-Verified locally: Terraform initialization and validation, all six mocked Terraform
-tests, Go tests/vet, fresh PostgreSQL migrations, healthy production containers,
-and HTTP CRUD/filter integration tests. A real EC2 apply and GitHub image publication
-have not been run.
-
-To reproduce the isolated production check on port 18080 (after creating `.env` above):
+Isolated production check on port 18080:
 
 ```bash
 APP_IMAGE=car-service:check APP_HOST_PORT=18080 APP_BIND_ADDRESS=127.0.0.1 \
@@ -408,95 +355,43 @@ APP_IMAGE=car-service:check APP_HOST_PORT=18080 APP_BIND_ADDRESS=127.0.0.1 \
   -f deployment/docker/docker-compose.prod.yml up -d --build --wait
 CAR_SERVICE_BASE_URL=http://127.0.0.1:18080 go test -tags=integration ./test -count=1
 curl --fail http://127.0.0.1:18080/health
-# Stop this check while keeping its database:
+
 docker compose -p car-service-check --env-file deployment/docker/.env \
   -f deployment/docker/docker-compose.prod.yml down
 ```
 
----
+## Regenerating code
 
-## Architecture
+sqlc after touching `database/queries/`:
 
-```
-             HTTP Request
-                  │
-                  ▼
-            Chi Router
-                  │
-                  ▼
-             Handlers
-                  │
-                  ▼
-             Services
-                  │
-                  ▼
-           sqlc Queries
-                  │
-                  ▼
-             PostgreSQL
+```bash
+sqlc generate
 ```
 
----
+Swagger after adding annotations to a handler:
+
+```bash
+go run github.com/swaggo/swag/cmd/swag@v1.8.1 init -g cmd/car_service/main.go -o docs
+```
 
 ## Roadmap
 
-## Roadmap
+**Done**
 
-### Application Foundation
-- [x] REST API
-- [x] PostgreSQL
-- [x] sqlc
-- [x] Database migrations
-- [x] Structured logging
-- [x] Graceful shutdown
-- [x] Configuration validation
-- [x] Request ID middleware
+- REST API, PostgreSQL, sqlc, migrations
+- Structured logging, graceful shutdown, config validation, request ID middleware
+- Docker, Compose, container healthchecks
+- Unit, integration and load tests, GitHub Actions CI
+- Redis cache, pagination, OpenAPI/Swagger
+- Terraform infrastructure
 
-### Containerization
-- [x] Docker
-- [x] Docker Compose
-- [x] Docker health checks
+**Next**
 
-### Testing & Quality
-- [x] Unit tests
-- [x] Integration tests
-- [x] GitHub Actions CI
-
-### Application Features
-- [x] Redis cache
-- [x] Pagination
-- [x] OpenAPI / Swagger
-
-### Deployment
-- [ ] Deployment to AWS EC2
+- [ ] Deploy to AWS EC2
 - [ ] GitHub Actions CD
-
-### Infrastructure
-- [x] Terraform infrastructure
-
-### Observability
-- [ ] Metrics (/metrics with Prometheus)
-
-### Orchestration
+- [ ] Prometheus metrics at `/metrics`
 - [ ] Kubernetes
-
----
-
-## Learning Goals
-
-This project is built to practice production-oriented backend engineering:
-
-- Clean Architecture
-- SQL-first development
-- Containerization
-- Database migrations
-- Automated testing
-- CI/CD
-- Cloud deployment
-- Infrastructure as Code
-
----
 
 ## License
 
-This project is intended for educational and portfolio purposes.
+Educational and portfolio use.
