@@ -54,8 +54,74 @@ Swagger UI is at [`/swagger/index.html`](http://localhost:8080/swagger/index.htm
 | GET | `/cars` | List and filter cars |
 | GET | `/cars/{id}` | Get car by ID |
 | POST | `/cars` | Create car |
+| GET | `/cars/generations` | Optional, advisory generation suggestions |
 | PUT | `/cars/{id}` | Update car |
 | DELETE | `/cars/{id}` | Delete car |
+
+### Optional listing details
+
+Cars now include nullable `image`, `model_generation`, and `description` fields.
+Old create requests still work. On PUT, omitted optional fields stay unchanged;
+explicit `null`, empty, or whitespace-only values clear them. Responses include
+all three keys as strings or JSON `null`. Core PUT fields still use the existing
+replacement behavior.
+
+`image` is an absolute HTTP(S) URL (not an upload, binary data or filesystem path).
+Limits: image 2,048 characters, generation 100, description 10,000; request body
+128 KiB. Descriptions are plain text: frontends must escape them, not render HTML.
+The backend does not fetch image URLs or verify that they point to a real image.
+
+```sh
+curl --get http://localhost:8080/cars/generations \
+  --data-urlencode 'brand=Mercedes-Benz' \
+  --data-urlencode 'model=E280' \
+  --data-urlencode 'year=1995'
+```
+
+This returns both W124 facelift and early W210 suggestions, source URLs, body style,
+and a coverage notice. It never selects a generation or blocks car creation.
+The initial local catalogue covers **only E280 saloons, 1993–1999**; other makes,
+models and years can legitimately return `{"candidates":[],"notice":"..."}`.
+No internet request or credential is needed.
+
+See [design, API examples, data sources and engineering review](docs/listing-enrichment.md).
+
+### Predictable development commands
+
+```sh
+make help
+make test                # all Docker-free tests
+make test-http           # HTTP status/header/body-limit contracts, no Docker
+make race                # same tests with race detection
+make lint                # gofmt check + go vet; no extra linter
+make build               # bin/car_service
+make test-load           # isolated DB + Redis, bounded load scenarios
+make test-integration    # isolated DB + Redis; all integration/load tests with -race
+make test-down           # stop only the isolated test stack
+```
+
+`make generate` pins sqlc v1.31.1; `make docs` pins swag v1.8.1. They use `go run`
+and require network access on the first run. Generated files are committed.
+`make run` runs the API against the database configured in `.env`; it does not
+silently migrate that database.
+
+Upgrade an existing local Compose stack (back up important data first):
+
+```sh
+docker compose stop car_service
+make migrate-up
+docker compose up -d --no-deps --build car_service
+```
+
+The schema must be upgraded before the new binary runs. Migration 000002 only adds
+nullable columns; it does not rewrite 000001 or remove existing cars. The new binary
+uses `cars:v2:` Redis keys, leaving old keys to expire without flushing Redis.
+Do not run old and new app versions together: their cache namespaces differ.
+
+`make migrate-down CONFIRM=drop-listing-details` rolls back **one** migration in the
+local Compose database. This deletes optional-field data. Stop the new app first;
+restore/run a compatible old binary after rollback. Do not roll back production
+without a backup and an explicit recovery plan.
 
 ### Filtering
 
@@ -118,14 +184,20 @@ success paths, field mapping, malformed JSON, bad IDs and filters, 404s, DB fail
 error response bodies, and context propagation. They don't add validation rules of
 their own.
 
-Integration tests against the Compose stack:
+Integration tests default to the separate test stack, not your development API:
 
 ```bash
-docker compose up -d --build
-go test -tags=integration ./test -run Integration -count=1
+make test-integration
+make test-down
 ```
 
-Point them at another instance with `CAR_SERVICE_BASE_URL`.
+The suite starts the real application in-process, so the race detector covers
+handlers/services as well as tests. It checks CRUD, optional fields, migrations,
+Redis, concurrency and bounded load. Migration tests create a transaction-local
+schema and roll it back; they never roll back your application database.
+The old external-API smoke test can still be selected explicitly with
+`CAR_SERVICE_BASE_URL=http://... go test -tags=integration ./test -run '^TestIntegrationCarsCRUDAndFilters$'`.
+Never point write tests at production.
 
 ### Concurrency and load
 
@@ -142,11 +214,11 @@ docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml
 go test -race -tags=integration,load ./test -run '^TestConcurrent' -count=1 -timeout=2m -v
 
 # Load, without race-detector overhead
-go test -tags=integration,load ./test -run '^TestLoadCars$' -count=1 -timeout=2m -v
+make test-load
 
 # Bigger local sample
 LOAD_WORKERS=16 LOAD_ITERATIONS=100 \
-  go test -tags=integration,load ./test -run '^TestLoadCars$' -count=1 -timeout=2m -v
+  make test-load
 
 # Tear down (keeps volumes)
 docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml down
@@ -156,9 +228,11 @@ The load harness starts the real router in-process on an ephemeral port, so the 
 detector instruments server code. `CAR_SERVICE_BASE_URL` is ignored here. Each worker
 owns its own car and cleans up only its own fixtures.
 
-Default run: 8 workers × 25 iterations × (1 update + 2 reads + 1 filtered list) = 800
-measured requests. Setup and teardown happen outside the measurement. Output is request
-count, errors, req/s, and p50/p95/p99. Any HTTP or correctness error fails the test.
+The default run has two scenarios: 800 mixed update/read/list requests and 200
+concurrent uncached list requests. The second scenario pressures the PostgreSQL
+connection pool instead of measuring Redis alone. Setup and teardown happen outside
+the measurement. Each result line includes the scenario, request count, errors,
+throughput, and p50/p95/p99. Any HTTP or correctness error fails the test.
 
 Two caveats worth knowing:
 

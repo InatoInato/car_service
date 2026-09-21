@@ -160,8 +160,70 @@ const docTemplate = `{
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/cars/generations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cars"
+                ],
+                "summary": "Suggest model generations (advisory, limited coverage)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Manufacturer, as in car CRUD",
+                        "name": "brand",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model",
+                        "name": "model",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "maximum": 2100,
+                        "minimum": 1886,
+                        "type": "integer",
+                        "description": "Calendar production year",
+                        "name": "year",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/generation.Result"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -209,6 +271,7 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "description": "Replaces core fields. Omitted image/model_generation/description stay unchanged; null or blank clears them.",
                 "consumes": [
                     "application/json"
                 ],
@@ -252,6 +315,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -351,13 +420,25 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2026-08-06T12:00:00Z"
                 },
+                "description": {
+                    "type": "string",
+                    "x-nullable": true
+                },
                 "id": {
                     "type": "string",
                     "example": "23b12e8b-3995-4910-9a7b-55cda03ade9f"
                 },
+                "image": {
+                    "type": "string",
+                    "x-nullable": true
+                },
                 "model": {
                     "type": "string",
                     "example": "X5"
+                },
+                "model_generation": {
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "price": {
                     "type": "number",
@@ -384,9 +465,27 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Blue"
                 },
+                "description": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "x-nullable": true,
+                    "example": "Well maintained. Service records available."
+                },
+                "image": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "x-nullable": true,
+                    "example": "https://images.example.com/car.jpg"
+                },
                 "model": {
                     "type": "string",
                     "example": "X5"
+                },
+                "model_generation": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "x-nullable": true,
+                    "example": "W124 facelift"
                 },
                 "price": {
                     "type": "number",
@@ -427,6 +526,40 @@ const docTemplate = `{
                 "total": {
                     "type": "integer",
                     "example": 42
+                }
+            }
+        },
+        "generation.Candidate": {
+            "type": "object",
+            "properties": {
+                "body_style": {
+                    "type": "string"
+                },
+                "generation": {
+                    "type": "string"
+                },
+                "production_year_end": {
+                    "type": "integer"
+                },
+                "production_year_start": {
+                    "type": "integer"
+                },
+                "source_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "generation.Result": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/generation.Candidate"
+                    }
+                },
+                "notice": {
+                    "type": "string"
                 }
             }
         }

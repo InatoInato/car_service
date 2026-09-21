@@ -64,8 +64,10 @@ jobs:
           docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml run --rm migrate
       - name: Concurrent API tests with race detection
         run: go test -race -tags=integration,load ./test -run '^TestConcurrent' -count=1 -timeout=2m -v
-      - name: Bounded load smoke test
-        run: go test -tags=integration,load ./test -run '^TestLoadCars$' -count=1 -timeout=2m -v
+      - name: CRUD, optional fields and migration round-trip tests
+        run: go test -race -tags=integration ./... -count=1 -timeout=2m
+      - name: Bounded load smoke tests
+        run: go test -tags=integration,load ./test -run '^TestLoad' -count=1 -timeout=2m -v
       - name: Database diagnostics on failure
         if: failure()
         run: docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml logs --no-color --tail=100

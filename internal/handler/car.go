@@ -37,20 +37,18 @@ func NewCarHandler(service *service.CarService) *CarHandler {
 // @Success      201 {object} dto.CarResponse
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      413 {object} dto.ErrorResponse
 // @Router       /cars [post]
 func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req dto.CreateCarRequest
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.UseNumber()
-	if err := decoder.Decode(&req); err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid request")
+	req, err := decodeCarRequest(w, r)
+	if err != nil {
+		h.writeRequestError(w, err)
 		return
 	}
 
 	params, err := createCarParams(req)
 	if err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid price")
+		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -271,6 +269,7 @@ func priceFilter(value string) (pgtype.Numeric, float64, error) {
 // Update updates a car.
 //
 // @Summary      Update car
+// @Description  Replaces core fields. Omitted image/model_generation/description stay unchanged; null or blank clears them.
 // @Tags         Cars
 // @Accept       json
 // @Produce      json
@@ -279,6 +278,7 @@ func priceFilter(value string) (pgtype.Numeric, float64, error) {
 // @Success      200 {object} dto.CarResponse
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
+// @Failure      413 {object} dto.ErrorResponse
 // @Router       /cars/{id} [put]
 func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
@@ -288,17 +288,20 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var payload dto.CreateCarRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.UseNumber()
-	if err := decoder.Decode(&payload); err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid request body")
+	payload, err := decodeCarRequest(w, r)
+	if err != nil {
+		h.writeRequestError(w, err)
 		return
 	}
 
 	price, err := numericPrice(payload.Price)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid price")
+		return
+	}
+	details, err := parseListingDetails(payload)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -309,6 +312,9 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ProductionYear: payload.ProductionYear,
 		Color:          payload.Color,
 		Price:          price,
+		Image:          details.image, SetImage: payload.Image.Present,
+		ModelGeneration: details.generation, SetModelGeneration: payload.ModelGeneration.Present,
+		Description: details.description, SetDescription: payload.Description.Present,
 	}
 
 	car, err := h.service.UpdateCar(r.Context(), params)
@@ -327,19 +333,26 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 func createCarParams(req dto.CreateCarRequest) (db.CreateCarParams, error) {
 	price, err := numericPrice(req.Price)
 	if err != nil {
+		return db.CreateCarParams{}, errors.New("invalid price")
+	}
+	details, err := parseListingDetails(req)
+	if err != nil {
 		return db.CreateCarParams{}, err
 	}
 
 	now := time.Now().UTC()
 	return db.CreateCarParams{
-		ID:             uuid.New(),
-		Brand:          req.Brand,
-		Model:          req.Model,
-		ProductionYear: req.ProductionYear,
-		Color:          req.Color,
-		Price:          price,
-		CreatedAt:      pgtype.Timestamptz{Time: now, Valid: true},
-		UpdatedAt:      pgtype.Timestamptz{Time: now, Valid: true},
+		ID:              uuid.New(),
+		Brand:           req.Brand,
+		Model:           req.Model,
+		ProductionYear:  req.ProductionYear,
+		Color:           req.Color,
+		Price:           price,
+		Image:           details.image,
+		ModelGeneration: details.generation,
+		Description:     details.description,
+		CreatedAt:       pgtype.Timestamptz{Time: now, Valid: true},
+		UpdatedAt:       pgtype.Timestamptz{Time: now, Valid: true},
 	}, nil
 }
 

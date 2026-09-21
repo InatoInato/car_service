@@ -87,7 +87,10 @@ INSERT INTO cars (
     color,
     price,
     created_at,
-    updated_at
+    updated_at,
+    image,
+    model_generation,
+    description
 ) VALUES (
     $1,
     $2,
@@ -96,20 +99,26 @@ INSERT INTO cars (
     $5,
     $6,
     $7,
-    $8
+    $8,
+    $9,
+    $10,
+    $11
 )
-RETURNING id, brand, model, production_year, color, price, created_at, updated_at
+RETURNING id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
 `
 
 type CreateCarParams struct {
-	ID             uuid.UUID          `json:"id"`
-	Brand          string             `json:"brand"`
-	Model          string             `json:"model"`
-	ProductionYear int16              `json:"production_year"`
-	Color          string             `json:"color"`
-	Price          pgtype.Numeric     `json:"price"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID              uuid.UUID          `json:"id"`
+	Brand           string             `json:"brand"`
+	Model           string             `json:"model"`
+	ProductionYear  int16              `json:"production_year"`
+	Color           string             `json:"color"`
+	Price           pgtype.Numeric     `json:"price"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Image           pgtype.Text        `json:"image"`
+	ModelGeneration pgtype.Text        `json:"model_generation"`
+	Description     pgtype.Text        `json:"description"`
 }
 
 func (q *Queries) CreateCar(ctx context.Context, arg CreateCarParams) (Car, error) {
@@ -122,6 +131,9 @@ func (q *Queries) CreateCar(ctx context.Context, arg CreateCarParams) (Car, erro
 		arg.Price,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.Image,
+		arg.ModelGeneration,
+		arg.Description,
 	)
 	var i Car
 	err := row.Scan(
@@ -133,6 +145,9 @@ func (q *Queries) CreateCar(ctx context.Context, arg CreateCarParams) (Car, erro
 		&i.Price,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Image,
+		&i.ModelGeneration,
+		&i.Description,
 	)
 	return i, err
 }
@@ -148,7 +163,7 @@ func (q *Queries) DeleteCar(ctx context.Context, id uuid.UUID) error {
 }
 
 const filterCars = `-- name: FilterCars :many
-SELECT id, brand, model, production_year, color, price, created_at, updated_at
+SELECT id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
 FROM cars
 WHERE (
     $1::text = ''
@@ -203,6 +218,9 @@ func (q *Queries) FilterCars(ctx context.Context, arg FilterCarsParams) ([]Car, 
 			&i.Price,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Image,
+			&i.ModelGeneration,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -223,7 +241,10 @@ SELECT
     color,
     price,
     created_at,
-    updated_at
+    updated_at,
+    image,
+    model_generation,
+    description
 FROM cars
 WHERE id = $1
 `
@@ -240,12 +261,15 @@ func (q *Queries) GetCarByID(ctx context.Context, id uuid.UUID) (Car, error) {
 		&i.Price,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Image,
+		&i.ModelGeneration,
+		&i.Description,
 	)
 	return i, err
 }
 
 const listCars = `-- name: ListCars :many
-SELECT id, brand, model, production_year, color, price, created_at, updated_at
+SELECT id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
 FROM cars
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -274,6 +298,9 @@ func (q *Queries) ListCars(ctx context.Context, arg ListCarsParams) ([]Car, erro
 			&i.Price,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Image,
+			&i.ModelGeneration,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -293,18 +320,27 @@ SET
     production_year = $4,
     color = $5,
     price = $6,
+    image = CASE WHEN $7::boolean THEN $8::text ELSE image END,
+    model_generation = CASE WHEN $9::boolean THEN $10::text ELSE model_generation END,
+    description = CASE WHEN $11::boolean THEN $12::text ELSE description END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, brand, model, production_year, color, price, created_at, updated_at
+RETURNING id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
 `
 
 type UpdateCarParams struct {
-	ID             uuid.UUID      `json:"id"`
-	Brand          string         `json:"brand"`
-	Model          string         `json:"model"`
-	ProductionYear int16          `json:"production_year"`
-	Color          string         `json:"color"`
-	Price          pgtype.Numeric `json:"price"`
+	ID                 uuid.UUID      `json:"id"`
+	Brand              string         `json:"brand"`
+	Model              string         `json:"model"`
+	ProductionYear     int16          `json:"production_year"`
+	Color              string         `json:"color"`
+	Price              pgtype.Numeric `json:"price"`
+	SetImage           bool           `json:"set_image"`
+	Image              pgtype.Text    `json:"image"`
+	SetModelGeneration bool           `json:"set_model_generation"`
+	ModelGeneration    pgtype.Text    `json:"model_generation"`
+	SetDescription     bool           `json:"set_description"`
+	Description        pgtype.Text    `json:"description"`
 }
 
 func (q *Queries) UpdateCar(ctx context.Context, arg UpdateCarParams) (Car, error) {
@@ -315,6 +351,12 @@ func (q *Queries) UpdateCar(ctx context.Context, arg UpdateCarParams) (Car, erro
 		arg.ProductionYear,
 		arg.Color,
 		arg.Price,
+		arg.SetImage,
+		arg.Image,
+		arg.SetModelGeneration,
+		arg.ModelGeneration,
+		arg.SetDescription,
+		arg.Description,
 	)
 	var i Car
 	err := row.Scan(
@@ -326,6 +368,9 @@ func (q *Queries) UpdateCar(ctx context.Context, arg UpdateCarParams) (Car, erro
 		&i.Price,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Image,
+		&i.ModelGeneration,
+		&i.Description,
 	)
 	return i, err
 }

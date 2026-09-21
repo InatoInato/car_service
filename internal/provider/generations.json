@@ -1,0 +1,20 @@
+[
+  {
+    "brand": "Mercedes-Benz",
+    "model": "E 280",
+    "generation": "W124 facelift",
+    "production_year_start": 1993,
+    "production_year_end": 1995,
+    "body_style": "saloon",
+    "source_url": "https://mercedes-benz-publicarchive.com/marsClassic/en/instance/ko/E-280--W-124-E-28-1993---1995.xhtml?oid=5158"
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "model": "E 280",
+    "generation": "W210 early",
+    "production_year_start": 1995,
+    "production_year_end": 1999,
+    "body_style": "saloon",
+    "source_url": "https://mercedes-benz-publicarchive.com/marsClassic/en/instance/ko/210-series-E-Class-Saloons-1995---1999.xhtml?oid=5309"
+  }
+]

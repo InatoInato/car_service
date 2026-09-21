@@ -11,12 +11,21 @@ definitions:
       created_at:
         example: "2026-08-06T12:00:00Z"
         type: string
+      description:
+        type: string
+        x-nullable: true
       id:
         example: 23b12e8b-3995-4910-9a7b-55cda03ade9f
         type: string
+      image:
+        type: string
+        x-nullable: true
       model:
         example: X5
         type: string
+      model_generation:
+        type: string
+        x-nullable: true
       price:
         example: 49500
         type: number
@@ -35,9 +44,24 @@ definitions:
       color:
         example: Blue
         type: string
+      description:
+        example: Well maintained. Service records available.
+        maxLength: 10000
+        type: string
+        x-nullable: true
+      image:
+        example: https://images.example.com/car.jpg
+        maxLength: 2048
+        type: string
+        x-nullable: true
       model:
         example: X5
         type: string
+      model_generation:
+        example: W124 facelift
+        maxLength: 100
+        type: string
+        x-nullable: true
       price:
         example: 49500
         type: number
@@ -66,6 +90,28 @@ definitions:
       total:
         example: 42
         type: integer
+    type: object
+  generation.Candidate:
+    properties:
+      body_style:
+        type: string
+      generation:
+        type: string
+      production_year_end:
+        type: integer
+      production_year_start:
+        type: integer
+      source_url:
+        type: string
+    type: object
+  generation.Result:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/generation.Candidate'
+        type: array
+      notice:
+        type: string
     type: object
 info:
   contact: {}
@@ -170,6 +216,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -227,6 +277,8 @@ paths:
     put:
       consumes:
       - application/json
+      description: Replaces core fields. Omitted image/model_generation/description
+        stay unchanged; null or blank clears them.
       parameters:
       - description: Car UUID
         in: path
@@ -254,7 +306,49 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Update car
+      tags:
+      - Cars
+  /cars/generations:
+    get:
+      parameters:
+      - description: Manufacturer, as in car CRUD
+        in: query
+        name: brand
+        required: true
+        type: string
+      - description: Model
+        in: query
+        name: model
+        required: true
+        type: string
+      - description: Calendar production year
+        in: query
+        maximum: 2100
+        minimum: 1886
+        name: year
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/generation.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Suggest model generations (advisory, limited coverage)
       tags:
       - Cars
   /health:

@@ -10,12 +10,15 @@ import (
 )
 
 type Car struct {
-	ID             uuid.UUID          `json:"id"`
-	Brand          string             `json:"brand"`
-	Model          string             `json:"model"`
-	ProductionYear int16              `json:"production_year"`
-	Color          string             `json:"color"`
-	Price          pgtype.Numeric     `json:"price"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID              uuid.UUID          `json:"id"`
+	Brand           string             `json:"brand"`
+	Model           string             `json:"model"`
+	ProductionYear  int16              `json:"production_year"`
+	Color           string             `json:"color"`
+	Price           pgtype.Numeric     `json:"price"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Image           pgtype.Text        `json:"image"`
+	ModelGeneration pgtype.Text        `json:"model_generation"`
+	Description     pgtype.Text        `json:"description"`
 }

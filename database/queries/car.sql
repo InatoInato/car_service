@@ -7,7 +7,10 @@ INSERT INTO cars (
     color,
     price,
     created_at,
-    updated_at
+    updated_at,
+    image,
+    model_generation,
+    description
 ) VALUES (
     $1,
     $2,
@@ -16,7 +19,10 @@ INSERT INTO cars (
     $5,
     $6,
     $7,
-    $8
+    $8,
+    $9,
+    $10,
+    $11
 )
 RETURNING *;
 
@@ -29,18 +35,21 @@ SELECT
     color,
     price,
     created_at,
-    updated_at
+    updated_at,
+    image,
+    model_generation,
+    description
 FROM cars
 WHERE id = $1;
 
 -- name: ListCars :many
-SELECT id, brand, model, production_year, color, price, created_at, updated_at
+SELECT id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
 FROM cars
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
 
 -- name: FilterCars :many
-SELECT id, brand, model, production_year, color, price, created_at, updated_at
+SELECT id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
 FROM cars
 WHERE (
     sqlc.arg('name')::text = ''
@@ -64,6 +73,9 @@ SET
     production_year = $4,
     color = $5,
     price = $6,
+    image = CASE WHEN sqlc.arg('set_image')::boolean THEN sqlc.narg('image')::text ELSE image END,
+    model_generation = CASE WHEN sqlc.arg('set_model_generation')::boolean THEN sqlc.narg('model_generation')::text ELSE model_generation END,
+    description = CASE WHEN sqlc.arg('set_description')::boolean THEN sqlc.narg('description')::text ELSE description END,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;

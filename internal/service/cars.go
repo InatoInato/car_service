@@ -55,7 +55,7 @@ func (s *CarService) GetCarByID(
 	ctx context.Context,
 	id uuid.UUID,
 ) (db.Car, error) {
-	key := fmt.Sprintf("cars:%s", id.String())
+	key := carCacheKey(id)
 
 	if s.redis != nil {
 		val, err := s.redis.Get(ctx, key).Result()
@@ -155,7 +155,7 @@ func (s *CarService) UpdateCar(
 	}
 
 	if s.redis != nil {
-		key := fmt.Sprintf("cars:%s", car.ID.String())
+		key := carCacheKey(car.ID)
 		if err := s.redis.Del(ctx, key).Err(); err != nil {
 			s.logger.Warn("redis cache invalidation failed", "key", key, "error", err)
 		} else {
@@ -175,7 +175,7 @@ func (s *CarService) DeleteCar(
 	}
 
 	if s.redis != nil {
-		key := fmt.Sprintf("cars:%s", id.String())
+		key := carCacheKey(id)
 		if err := s.redis.Del(ctx, key).Err(); err != nil {
 			s.logger.Warn("redis cache invalidation failed", "key", key, "error", err)
 		} else {
@@ -185,3 +185,7 @@ func (s *CarService) DeleteCar(
 
 	return nil
 }
+
+// A schema-versioned namespace avoids decoding old cached records that omit
+// listing details. Old keys expire naturally; no Redis-wide flush is needed.
+func carCacheKey(id uuid.UUID) string { return "cars:v2:" + id.String() }

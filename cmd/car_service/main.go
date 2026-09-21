@@ -14,6 +14,7 @@ import (
 	router "github.com/InatoInato/car_service.git/internal"
 	"github.com/InatoInato/car_service.git/internal/config"
 	"github.com/InatoInato/car_service.git/internal/db"
+	"github.com/InatoInato/car_service.git/internal/provider"
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -95,7 +96,12 @@ func main() {
 
 	queries := db.New(dbPool)
 	carService := service.NewCarService(queries, rdb, logger)
-	r := router.New(logger, carService)
+	catalogue, err := provider.NewGenerationCatalog()
+	if err != nil {
+		logger.Error("invalid bundled generation catalogue", "error", err)
+		os.Exit(1)
+	}
+	r := router.New(logger, carService, service.NewGenerationService(catalogue))
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Server.Port,

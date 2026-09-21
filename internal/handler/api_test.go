@@ -66,7 +66,7 @@ func (s *apiStore) CountFilteredCars(ctx context.Context, p db.CountFilteredCars
 func api(t *testing.T, store *apiStore) http.Handler {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return router.New(logger, service.NewCarService(store, nil, logger))
+	return router.New(logger, service.NewCarService(store, nil, logger), nil)
 }
 
 const validCarJSON = `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":12345.67}`

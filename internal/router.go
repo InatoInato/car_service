@@ -10,7 +10,9 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-func New(logger *slog.Logger, carService *service.CarService) *chi.Mux {
+// Main wires both services explicitly. A nil generation service disables only
+// suggestions; CRUD does not depend on the suggestion provider.
+func New(logger *slog.Logger, carService *service.CarService, generationService *service.GenerationService) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logging(logger))
@@ -18,8 +20,10 @@ func New(logger *slog.Logger, carService *service.CarService) *chi.Mux {
 	// Fixed: Passed the service dependency
 	carHandler := handler.NewCarHandler(carService)
 	healthHandler := handler.NewHealthHandler()
+	generationHandler := handler.NewGenerationHandler(generationService, logger)
 
 	r.Route("/cars", func(r chi.Router) {
+		r.Get("/generations", generationHandler.Suggest)
 		r.Post("/", carHandler.Create)       // Missing POST
 		r.Get("/", carHandler.List)          // Missing GET all cars
 		r.Get("/{id}", carHandler.GetByID)   // Missing GET by ID

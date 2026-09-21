@@ -1,4 +1,5 @@
 .env
+/bin/
 deployment/terraform/.terraform/
 deployment/terraform/*.tfstate
 deployment/terraform/*.tfstate.*

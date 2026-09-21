@@ -47,7 +47,7 @@ func loadServer(t *testing.T) (*http.Client, string) {
 		t.Fatalf("test Redis unavailable: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool), cache, logger)))
+	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool), cache, logger), nil))
 	t.Cleanup(server.Close)
 	client := server.Client()
 	client.Timeout = 5 * time.Second
@@ -287,7 +287,77 @@ func TestLoadCars(t *testing.T) {
 	}
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 	percentile := func(p int) time.Duration { return latencies[(len(latencies)*p+99)/100-1] }
-	t.Logf("workers=%d requests=%d errors=%d duration=%s throughput=%.1f req/s p50=%s p95=%s p99=%s", workers, len(latencies), failures, elapsed, float64(len(latencies))/elapsed.Seconds(), percentile(50), percentile(95), percentile(99))
+	t.Logf("RESULT | scenario=crud workers=%d requests=%d errors=%d duration=%s throughput=%.1f req/s p50=%s p95=%s p99=%s", workers, len(latencies), failures, elapsed, float64(len(latencies))/elapsed.Seconds(), percentile(50), percentile(95), percentile(99))
+	if failures != 0 {
+		t.Fatalf("%d requests failed", failures)
+	}
+}
+
+// List requests are deliberately uncached. This burst exercises the HTTP
+// transport, router and PostgreSQL connection pool under concurrent reads.
+func TestLoadListBurst(t *testing.T) {
+	workers := loadSetting(t, "LOAD_WORKERS", 8, 64)
+	iterations := loadSetting(t, "LOAD_ITERATIONS", 25, 1000)
+	client, endpoint := loadServer(t)
+	prefix := "List-load-" + uuid.NewString()
+	created := make([]carResponse, workers)
+	for i := range created {
+		payload := carPayload{Brand: prefix, Model: fmt.Sprintf("car-%d", i), ProductionYear: 2024, Color: "Silver", Price: 10000 + float64(i)}
+		if err := loadRequest(client, endpoint, http.MethodPost, "/cars", payload, http.StatusCreated, &created[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, car := range created {
+			if err := loadRequest(client, endpoint, http.MethodDelete, "/cars/"+car.ID, nil, http.StatusNoContent, nil); err != nil {
+				t.Errorf("fixture cleanup: %v", err)
+			}
+		}
+	})
+
+	type result struct {
+		latency time.Duration
+		err     error
+	}
+	results := make(chan result, workers*iterations)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for i := 0; i < iterations; i++ {
+				began := time.Now()
+				var list carListResponse
+				err := loadRequest(client, endpoint, http.MethodGet, "/cars?name="+url.QueryEscape(prefix)+"&limit=100", nil, http.StatusOK, &list)
+				if err == nil && (list.Total != int64(workers) || len(list.Data) != workers) {
+					err = fmt.Errorf("incorrect list size: total=%d data=%d want=%d", list.Total, len(list.Data), workers)
+				}
+				results <- result{latency: time.Since(began), err: err}
+			}
+		}()
+	}
+	began := time.Now()
+	close(start)
+	wg.Wait()
+	elapsed := time.Since(began)
+	close(results)
+
+	latencies := make([]time.Duration, 0, workers*iterations)
+	failures := 0
+	for result := range results {
+		latencies = append(latencies, result.latency)
+		if result.err != nil {
+			failures++
+			if failures <= 5 {
+				t.Log(result.err)
+			}
+		}
+	}
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	percentile := func(p int) time.Duration { return latencies[(len(latencies)*p+99)/100-1] }
+	t.Logf("RESULT | scenario=list-burst workers=%d requests=%d errors=%d duration=%s throughput=%.1f req/s p50=%s p95=%s p99=%s", workers, len(latencies), failures, elapsed, float64(len(latencies))/elapsed.Seconds(), percentile(50), percentile(95), percentile(99))
 	if failures != 0 {
 		t.Fatalf("%d requests failed", failures)
 	}
