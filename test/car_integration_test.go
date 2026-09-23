@@ -70,7 +70,7 @@ func TestIntegrationCarsCRUDAndFilters(t *testing.T) {
 		assertCar(t, fetched, first.ID, uniqueName, "Alpha", 2021, "15001.25")
 	})
 
-	t.Run("update invalidates cached car", func(t *testing.T) {
+	t.Run("update is visible on subsequent get", func(t *testing.T) {
 		payload := carPayload{
 			Brand:          uniqueName,
 			Model:          "Alpha Updated",
@@ -186,6 +186,37 @@ func TestIntegrationCarsCRUDAndFilters(t *testing.T) {
 		requestJSON(t, client, http.MethodDelete, "/cars/"+second.ID, nil, http.StatusNoContent, nil)
 		requestJSON(t, client, http.MethodGet, "/cars/"+second.ID, nil, http.StatusNotFound, nil)
 	})
+}
+
+func TestIntegrationPriceIsRequiredAndExact(t *testing.T) {
+	waitForServer(t)
+	client := &http.Client{Timeout: 5 * time.Second}
+	base := `{"brand":"PriceTest","model":"Exact","production_year":2024,"color":"Blue"`
+	for _, suffix := range []string{
+		`}`,
+		`,"price":null}`,
+		`,"price":1.00000000000000001}`,
+		`,"price":10000000000}`,
+	} {
+		requestJSON(t, client, http.MethodPost, "/cars", json.RawMessage(base+suffix), http.StatusBadRequest, nil)
+	}
+	var created carResponse
+	requestJSON(t, client, http.MethodPost, "/cars", json.RawMessage(base+`,"price":0.29}`), http.StatusCreated, &created)
+	t.Cleanup(func() { deleteCar(t, client, created.ID) })
+	if created.Price.String() != "0.29" {
+		t.Fatalf("price changed on create: %s", created.Price)
+	}
+	requestJSON(t, client, http.MethodPut, "/cars/"+created.ID, json.RawMessage(base+`,"price":1.00000000000000001}`), http.StatusBadRequest, nil)
+	var unchanged carResponse
+	requestJSON(t, client, http.MethodGet, "/cars/"+created.ID, nil, http.StatusOK, &unchanged)
+	if unchanged.Price.String() != "0.29" {
+		t.Fatalf("invalid update changed price: %s", unchanged.Price)
+	}
+	var updated carResponse
+	requestJSON(t, client, http.MethodPut, "/cars/"+created.ID, json.RawMessage(base+`,"price":9999999999.99}`), http.StatusOK, &updated)
+	if updated.Price.String() != "9999999999.99" {
+		t.Fatalf("price lost precision at upper bound: %s", updated.Price)
+	}
 }
 
 func createCar(t *testing.T, client *http.Client, payload carPayload) carResponse {

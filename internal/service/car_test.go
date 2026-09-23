@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -66,7 +68,7 @@ func TestCreateCar(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil, nil)
+	svc := NewCarService(store)
 
 	car, err := svc.CreateCar(context.Background(), db.CreateCarParams{
 		ID:    uuid.New(),
@@ -95,7 +97,7 @@ func TestGetCarByID(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil, nil)
+	svc := NewCarService(store)
 
 	car, err := svc.GetCarByID(context.Background(), id)
 	if err != nil {
@@ -125,7 +127,7 @@ func TestListCars(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil, nil)
+	svc := NewCarService(store)
 
 	cars, total, err := svc.ListCars(context.Background(), 20, 0)
 	if err != nil {
@@ -155,7 +157,7 @@ func TestFilterCars(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil, nil)
+	svc := NewCarService(store)
 	params := db.FilterCarsParams{
 		Name: "bmw",
 		Year: pgtype.Int2{Int16: 2023, Valid: true},
@@ -180,7 +182,7 @@ func TestUpdateCar(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil, nil)
+	svc := NewCarService(store)
 
 	id := uuid.New()
 	car, err := svc.UpdateCar(context.Background(), db.UpdateCarParams{
@@ -204,7 +206,7 @@ func TestDeleteCar(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil, nil)
+	svc := NewCarService(store)
 
 	err := svc.DeleteCar(context.Background(), uuid.New())
 	if err != nil {
@@ -222,10 +224,56 @@ func TestCreateCar_Error(t *testing.T) {
 		},
 	}
 
-	svc := NewCarService(store, nil, nil)
+	svc := NewCarService(store)
 
 	_, err := svc.CreateCar(context.Background(), db.CreateCarParams{})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestReadsObserveWritesAcrossServiceInstances(t *testing.T) {
+	id := uuid.New()
+	var mu sync.Mutex
+	car := db.Car{ID: id, Model: "old"}
+	deleted := false
+	store := &mockCarStore{
+		getFn: func(_ context.Context, _ uuid.UUID) (db.Car, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if deleted {
+				return db.Car{}, pgx.ErrNoRows
+			}
+			return car, nil
+		},
+		updateFn: func(_ context.Context, params db.UpdateCarParams) (db.Car, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			car.Model = params.Model
+			return car, nil
+		},
+		deleteFn: func(_ context.Context, _ uuid.UUID) error {
+			mu.Lock()
+			defer mu.Unlock()
+			deleted = true
+			return nil
+		},
+	}
+	reader, writer := NewCarService(store), NewCarService(store)
+	ctx := context.Background()
+	if got, err := reader.GetCarByID(ctx, id); err != nil || got.Model != "old" {
+		t.Fatalf("initial read: car=%+v err=%v", got, err)
+	}
+	if _, err := writer.UpdateCar(ctx, db.UpdateCarParams{ID: id, Model: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := reader.GetCarByID(ctx, id); err != nil || got.Model != "new" {
+		t.Fatalf("stale read after update: car=%+v err=%v", got, err)
+	}
+	if err := writer.DeleteCar(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reader.GetCarByID(ctx, id); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("deleted car still visible: %v", err)
 	}
 }

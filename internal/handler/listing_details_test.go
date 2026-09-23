@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/InatoInato/car_service.git/internal/handler/dto"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestOptionalListingFields(t *testing.T) {
@@ -26,7 +27,7 @@ func TestOptionalListingFields(t *testing.T) {
 			if req.Image.Present != tc.present || req.ModelGeneration.Present != tc.present || req.Description.Present != tc.present {
 				t.Fatal("JSON presence lost")
 			}
-			p, err := createCarParams(req)
+			p, err := createCarParams(req, pgtype.Numeric{})
 			if err != nil {
 				t.Fatal(err)
 			}

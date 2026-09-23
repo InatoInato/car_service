@@ -60,7 +60,7 @@ jobs:
           go-version-file: go.mod
       - name: Start isolated test databases and migrations
         run: |
-          docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml up -d --wait --wait-timeout 120 postgres redis
+          docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml up -d --wait --wait-timeout 120 postgres
           docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml run --rm migrate
       - name: Concurrent API tests with race detection
         run: go test -race -tags=integration,load ./test -run '^TestConcurrent' -count=1 -timeout=2m -v

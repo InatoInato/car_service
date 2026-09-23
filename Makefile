@@ -9,8 +9,8 @@ help:
 	@echo 'fmt / lint               Format Go / check formatting and go vet'
 	@echo 'test / test-unit / race  Docker-free tests / same / race detector'
 	@echo 'test-http                HTTP status/header/body contracts, no Docker'
-	@echo 'test-load                Isolated PostgreSQL + Redis, bounded load scenarios'
-	@echo 'test-integration         Isolated PostgreSQL + Redis, all integration and load tests with -race'
+	@echo 'test-load                Isolated PostgreSQL, bounded load scenarios'
+	@echo 'test-integration         Isolated PostgreSQL, all integration and load tests with -race'
 	@echo 'test-down                Stop only the isolated test stack'
 	@echo 'migrate-up               Apply local Compose database migrations'
 	@echo 'migrate-down             Roll back ONE migration (requires CONFIRM=drop-listing-details)'
@@ -33,14 +33,14 @@ test-http:
 race:
 	go test -race -count=1 -timeout=2m ./...
 test-up:
-	$(TEST_COMPOSE) up -d --wait --wait-timeout 120 postgres redis
+	$(TEST_COMPOSE) up -d --wait --wait-timeout 120 postgres
 	$(TEST_COMPOSE) run --rm migrate
 test-integration: test-up
 	CAR_SERVICE_BASE_URL= go test -race -tags=integration,load -count=1 -timeout=3m ./...
 test-load: test-up
 	CAR_SERVICE_BASE_URL= go test -tags=integration,load ./test -run '^TestLoad' -count=1 -timeout=2m -v
 test-down:
-	$(TEST_COMPOSE) down
+	$(TEST_COMPOSE) down --remove-orphans
 migrate-up:
 	docker compose run --rm migrate
 migrate-down:

@@ -2,14 +2,10 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log/slog"
-	"time"
 
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 type CarStore interface {
@@ -27,21 +23,11 @@ type FilteredCarStore interface {
 }
 
 type CarService struct {
-	store  CarStore
-	redis  *redis.Client
-	logger *slog.Logger
+	store CarStore
 }
 
-func NewCarService(store CarStore, redis *redis.Client, logger *slog.Logger) *CarService {
-	if logger == nil {
-		logger = slog.Default()
-	}
-
-	return &CarService{
-		store:  store,
-		redis:  redis,
-		logger: logger,
-	}
+func NewCarService(store CarStore) *CarService {
+	return &CarService{store: store}
 }
 
 func (s *CarService) CreateCar(
@@ -55,44 +41,9 @@ func (s *CarService) GetCarByID(
 	ctx context.Context,
 	id uuid.UUID,
 ) (db.Car, error) {
-	key := carCacheKey(id)
-
-	if s.redis != nil {
-		val, err := s.redis.Get(ctx, key).Result()
-		switch err {
-		case nil:
-			var car db.Car
-			if err := json.Unmarshal([]byte(val), &car); err == nil {
-				s.logger.Info("redis cache hit", "key", key)
-				return car, nil
-			} else {
-				s.logger.Warn("failed to unmarshal redis cache value", "key", key, "error", err)
-			}
-		case redis.Nil:
-			s.logger.Info("redis cache miss", "key", key)
-		default:
-			s.logger.Warn("redis cache read failed", "key", key, "error", err)
-		}
-	}
-
-	car, err := s.store.GetCarByID(ctx, id)
-	if err != nil {
-		return db.Car{}, err
-	}
-
-	if s.redis != nil {
-		if data, err := json.Marshal(car); err == nil {
-			if err := s.redis.Set(ctx, key, data, 10*time.Minute).Err(); err != nil {
-				s.logger.Warn("redis cache write failed", "key", key, "error", err)
-			} else {
-				s.logger.Info("redis cache write", "key", key, "ttl", 10*time.Minute)
-			}
-		} else {
-			s.logger.Warn("failed to marshal redis cache value", "key", key, "error", err)
-		}
-	}
-
-	return car, nil
+	// A mutable listing must be read from the source of truth. A cache
+	// invalidation failure after a committed write cannot safely be hidden.
+	return s.store.GetCarByID(ctx, id)
 }
 
 func (s *CarService) ListCars(
@@ -149,43 +100,12 @@ func (s *CarService) UpdateCar(
 	ctx context.Context,
 	params db.UpdateCarParams,
 ) (db.Car, error) {
-	car, err := s.store.UpdateCar(ctx, params)
-	if err != nil {
-		return db.Car{}, err
-	}
-
-	if s.redis != nil {
-		key := carCacheKey(car.ID)
-		if err := s.redis.Del(ctx, key).Err(); err != nil {
-			s.logger.Warn("redis cache invalidation failed", "key", key, "error", err)
-		} else {
-			s.logger.Info("redis cache invalidated", "key", key)
-		}
-	}
-
-	return car, nil
+	return s.store.UpdateCar(ctx, params)
 }
 
 func (s *CarService) DeleteCar(
 	ctx context.Context,
 	id uuid.UUID,
 ) error {
-	if err := s.store.DeleteCar(ctx, id); err != nil {
-		return err
-	}
-
-	if s.redis != nil {
-		key := carCacheKey(id)
-		if err := s.redis.Del(ctx, key).Err(); err != nil {
-			s.logger.Warn("redis cache invalidation failed", "key", key, "error", err)
-		} else {
-			s.logger.Info("redis cache invalidated", "key", key)
-		}
-	}
-
-	return nil
+	return s.store.DeleteCar(ctx, id)
 }
-
-// A schema-versioned namespace avoids decoding old cached records that omit
-// listing details. Old keys expire naturally; no Redis-wide flush is needed.
-func carCacheKey(id uuid.UUID) string { return "cars:v2:" + id.String() }

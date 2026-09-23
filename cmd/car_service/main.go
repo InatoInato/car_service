@@ -17,7 +17,6 @@ import (
 	"github.com/InatoInato/car_service.git/internal/provider"
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 )
 
 // @title Car Service API
@@ -76,26 +75,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	var rdb *redis.Client
-	redisAddr := os.Getenv("REDIS_ADDR")
-
-	if redisAddr != "" {
-		client := redis.NewClient(&redis.Options{
-			Addr:        redisAddr,
-			DialTimeout: 100 * time.Millisecond,
-			ReadTimeout: 100 * time.Millisecond,
-		})
-
-		if err := client.Ping(initCtx).Err(); err != nil {
-			logger.Warn("Redis connection failed, continuing without cache", "error", err)
-		} else {
-			rdb = client
-			logger.Info("connected to redis", "addr", redisAddr)
-		}
-	}
-
 	queries := db.New(dbPool)
-	carService := service.NewCarService(queries, rdb, logger)
+	carService := service.NewCarService(queries)
 	catalogue, err := provider.NewGenerationCatalog()
 	if err != nil {
 		logger.Error("invalid bundled generation catalogue", "error", err)

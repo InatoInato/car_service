@@ -18,16 +18,6 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cars"]
       interval: 5s
       retries: 10
-  redis:
-    image: redis:7-alpine
-    container_name: car-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      retries: 5
-
   migrate:
     image: migrate/migrate:v4.18.3
 
@@ -64,7 +54,6 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cars
       POSTGRES_SSLMODE: disable
-      REDIS_ADDR: redis:6379
 
     ports:
       - "8080:8080"

@@ -66,7 +66,7 @@ func (s *apiStore) CountFilteredCars(ctx context.Context, p db.CountFilteredCars
 func api(t *testing.T, store *apiStore) http.Handler {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return router.New(logger, service.NewCarService(store, nil, logger), nil)
+	return router.New(logger, service.NewCarService(store), nil)
 }
 
 const validCarJSON = `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":12345.67}`
@@ -98,6 +98,63 @@ func TestAPIRejectsMalformedRequestsBeforePersistence(t *testing.T) {
 				t.Fatalf("invalid request reached persistence %d times", store.calls)
 			}
 		})
+	}
+}
+
+func TestAPICoreValidationRejectsBeforePersistence(t *testing.T) {
+	t.Parallel()
+	invalid := []struct{ name, body string }{
+		{"missing brand", `{"model":"Camry","production_year":2024,"color":"Blue","price":100}`},
+		{"blank brand", `{"brand":"  ","model":"Camry","production_year":2024,"color":"Blue","price":100}`},
+		{"blank model", `{"brand":"Toyota","model":"\n","production_year":2024,"color":"Blue","price":100}`},
+		{"blank color", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":" ","price":100}`},
+		{"brand too long", `{"brand":"` + strings.Repeat("界", 101) + `","model":"Camry","production_year":2024,"color":"Blue","price":100}`},
+		{"year too early", `{"brand":"Toyota","model":"Camry","production_year":1800,"color":"Blue","price":100}`},
+		{"year too late", `{"brand":"Toyota","model":"Camry","production_year":2101,"color":"Blue","price":100}`},
+		{"negative price", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":-1}`},
+		{"price too large", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":10000000000}`},
+		{"fractional cent", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":100.123}`},
+		{"missing price", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue"}`},
+		{"null price", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":null}`},
+		{"hidden fractional cent", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":1.00000000000000001}`},
+		{"ambiguous price keys", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":100,"Price":200}`},
+		{"duplicate price keys", `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":100,"price":200}`},
+	}
+	for _, tc := range invalid {
+		for _, method := range []string{http.MethodPost, http.MethodPut} {
+			t.Run(method+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				store := &apiStore{}
+				path := "/cars"
+				if method == http.MethodPut {
+					path += "/" + uuid.NewString()
+				}
+				res := httptest.NewRecorder()
+				api(t, store).ServeHTTP(res, httptest.NewRequest(method, path, strings.NewReader(tc.body)))
+				assertAPIError(t, res, http.StatusBadRequest)
+				if store.calls != 0 {
+					t.Fatalf("invalid %s reached persistence %d times", tc.name, store.calls)
+				}
+			})
+		}
+	}
+}
+
+func TestAPICoreValidationPreservesValidBoundaries(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{
+		`{"brand":" Toyota ","model":" Camry ","production_year":1886,"color":" Blue ","price":0}`,
+		`{"brand":"Toyota","model":"Camry","production_year":2100,"color":"Blue","price":9999999999.99}`,
+	} {
+		store := &apiStore{car: db.Car{ID: uuid.New()}}
+		res := httptest.NewRecorder()
+		api(t, store).ServeHTTP(res, httptest.NewRequest(http.MethodPost, "/cars", strings.NewReader(body)))
+		if res.Code != http.StatusCreated || store.calls != 1 {
+			t.Fatalf("valid boundary rejected: status=%d body=%s", res.Code, res.Body.String())
+		}
+		if store.created.Brand != "Toyota" || store.created.Model != "Camry" || store.created.Color != "Blue" {
+			t.Fatalf("core text was not normalized: %+v", store.created)
+		}
 	}
 }
 

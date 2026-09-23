@@ -24,7 +24,6 @@ import (
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 )
 
 // The application runs in-process so -race instruments real handlers/services.
@@ -41,13 +40,8 @@ func loadServer(t *testing.T) (*http.Client, string) {
 	if err := pool.Ping(ctx); err != nil {
 		t.Fatalf("start docker-compose.test.yml first: %v", err)
 	}
-	cache := redis.NewClient(&redis.Options{Addr: "127.0.0.1:16379", DialTimeout: time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second})
-	t.Cleanup(func() { _ = cache.Close() })
-	if err := cache.Ping(ctx).Err(); err != nil {
-		t.Fatalf("test Redis unavailable: %v", err)
-	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool), cache, logger), nil))
+	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool)), nil))
 	t.Cleanup(server.Close)
 	client := server.Client()
 	client.Timeout = 5 * time.Second
@@ -106,8 +100,8 @@ func loadFixture(t *testing.T, client *http.Client, endpoint string) (carPayload
 	return payload, car
 }
 
-// Concurrent calls share one service, HTTP router and cache. Individual reads
-// may see an older version; this checks coherent records, not linearizability.
+// Concurrent calls share one service and HTTP router. Individual overlapping
+// reads may see an older version; this checks coherent records, not linearizability.
 func TestConcurrentCarReadUpdate(t *testing.T) {
 	client, endpoint := loadServer(t)
 	payload, car := loadFixture(t, client, endpoint)
@@ -252,7 +246,7 @@ func TestLoadCars(t *testing.T) {
 					switch step {
 					case 0:
 						err = loadRequest(client, endpoint, "PUT", "/cars/"+f.car.ID, update, 200, &got)
-					case 1, 2: // DB/cache fill, followed by a cache hit.
+					case 1, 2: // Both reads must reflect the committed DB update.
 						err = loadRequest(client, endpoint, "GET", "/cars/"+f.car.ID, nil, 200, &got)
 					case 3:
 						var list carListResponse
@@ -293,7 +287,7 @@ func TestLoadCars(t *testing.T) {
 	}
 }
 
-// List requests are deliberately uncached. This burst exercises the HTTP
+// List requests exercise the HTTP
 // transport, router and PostgreSQL connection pool under concurrent reads.
 func TestLoadListBurst(t *testing.T) {
 	workers := loadSetting(t, "LOAD_WORKERS", 8, 64)

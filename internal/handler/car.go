@@ -40,13 +40,17 @@ func NewCarHandler(service *service.CarService) *CarHandler {
 // @Failure      413 {object} dto.ErrorResponse
 // @Router       /cars [post]
 func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
-	req, err := decodeCarRequest(w, r)
+	req, price, err := decodeCarRequest(w, r)
 	if err != nil {
 		h.writeRequestError(w, err)
 		return
 	}
+	if err := validateCarCore(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
-	params, err := createCarParams(req)
+	params, err := createCarParams(req, price)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -288,17 +292,16 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := decodeCarRequest(w, r)
+	payload, price, err := decodeCarRequest(w, r)
 	if err != nil {
 		h.writeRequestError(w, err)
 		return
 	}
-
-	price, err := numericPrice(payload.Price)
-	if err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid price")
+	if err := validateCarCore(&payload); err != nil {
+		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
 	details, err := parseListingDetails(payload)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, err.Error())
@@ -330,11 +333,7 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, car)
 }
 
-func createCarParams(req dto.CreateCarRequest) (db.CreateCarParams, error) {
-	price, err := numericPrice(req.Price)
-	if err != nil {
-		return db.CreateCarParams{}, errors.New("invalid price")
-	}
+func createCarParams(req dto.CreateCarRequest, price pgtype.Numeric) (db.CreateCarParams, error) {
 	details, err := parseListingDetails(req)
 	if err != nil {
 		return db.CreateCarParams{}, err
@@ -354,14 +353,6 @@ func createCarParams(req dto.CreateCarRequest) (db.CreateCarParams, error) {
 		CreatedAt:       pgtype.Timestamptz{Time: now, Valid: true},
 		UpdatedAt:       pgtype.Timestamptz{Time: now, Valid: true},
 	}, nil
-}
-
-func numericPrice(price float64) (pgtype.Numeric, error) {
-	var numeric pgtype.Numeric
-	if err := numeric.Scan(strconv.FormatFloat(price, 'f', -1, 64)); err != nil {
-		return pgtype.Numeric{}, err
-	}
-	return numeric, nil
 }
 
 // Delete removes a car.

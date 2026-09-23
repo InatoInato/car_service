@@ -3,8 +3,6 @@
 package test
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
@@ -12,7 +10,6 @@ import (
 
 	"github.com/InatoInato/car_service.git/internal/handler/dto"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 func TestIntegrationListingDetails(t *testing.T) {
@@ -44,7 +41,7 @@ func TestIntegrationListingDetails(t *testing.T) {
 				assertDetails(t, created, "", "", "")
 			}
 			var got dto.CarResponse
-			requestJSON(t, client, "GET", path, nil, 200, &got) // warm Redis
+			requestJSON(t, client, "GET", path, nil, 200, &got)
 			if mode == "values" {
 				assertDetails(t, got, "https://example.com/car.jpg", "Owner supplied generation", "History\nSecond line")
 			} else {
@@ -103,25 +100,4 @@ func assertDetails(t *testing.T, car dto.CarResponse, image, generation, descrip
 			t.Fatalf("%s want %q, got %v", field.name, field.want, field.got)
 		}
 	}
-}
-
-func TestIntegrationIgnoresPreMigrationCache(t *testing.T) {
-	client := &http.Client{Timeout: 5 * time.Second}
-	body := map[string]any{"brand": "Cache-" + uuid.NewString(), "model": "M", "production_year": 1995, "color": "Black", "price": 100, "image": "https://example.com/image.jpg"}
-	var created dto.CarResponse
-	requestJSON(t, client, "POST", "/cars", body, 201, &created)
-	t.Cleanup(func() { deleteCar(t, client, created.ID) })
-	cache := redis.NewClient(&redis.Options{Addr: "127.0.0.1:16379"})
-	defer cache.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	legacy, _ := json.Marshal(map[string]any{"id": created.ID, "brand": created.Brand, "model": "Old cache"})
-	key := "cars:" + created.ID
-	if err := cache.Set(ctx, key, legacy, time.Minute).Err(); err != nil {
-		t.Fatal(err)
-	}
-	defer cache.Del(context.Background(), key)
-	var got dto.CarResponse
-	requestJSON(t, client, "GET", "/cars/"+created.ID, nil, 200, &got)
-	assertDetails(t, got, "https://example.com/image.jpg", "", "")
 }

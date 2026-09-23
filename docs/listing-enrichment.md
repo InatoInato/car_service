@@ -2,8 +2,8 @@
 
 ## Keep the existing architecture
 
-CRUD still follows router → handler → CarService → sqlc → PostgreSQL. Redis caches
-individual cars. The runtime model remains sqlc's `db.Car`; adding a second domain
+CRUD still follows router → handler → CarService → sqlc → PostgreSQL. Mutable
+cars are read directly from PostgreSQL. The runtime model remains sqlc's `db.Car`; adding a second domain
 Car and a mapping layer would not improve this small service. Swagger response DTOs
 were updated, and real HTTP tests verify their compatibility with `db.Car` JSON.
 
@@ -129,9 +129,9 @@ checking its licensing. Dataset updates require rebuild/redeploy, intentionally.
    a round-trip test prevents omitted fields becoming null when marshalled.
 2. COALESCE would preserve old values but make clearing impossible. Presence flags
    and atomic CASE updates support both behaviors without application-side merging.
-3. Old Redis JSON lacks the fields. A versioned `cars:v2:` namespace avoids serving
-   old-shape cached records. Sequential invalidation is tested; the pre-existing
-   concurrent stale-cache-fill problem is not solved by a namespace change.
+3. An earlier Redis cache could return old listing data if PostgreSQL committed
+   while cache invalidation failed. A regression test reproduced this. Reads now
+   use PostgreSQL; update and delete need no cross-system invalidation.
 4. Free-form text needs limits. HTTP requests are capped at 128 KiB, text lengths
    are checked before SQL, and database CHECKs protect alternate writers too.
    NUL text is rejected before PostgreSQL. Extra JSON documents are rejected.
@@ -151,13 +151,15 @@ Apply migration 000002 before starting the new binary. It adds nullable TEXT wit
 length checks and no data backfill. PostgreSQL still needs an ALTER TABLE lock:
 schedule the migration appropriately and avoid long transactions during rollout.
 Down migration deletes the three fields' contents; rollback is not a backup.
-Use a coordinated single-version deployment because old/new cache keys differ.
+Drain old cached app instances before bringing up this version. Old Redis data
+is not read by the new binary; do not delete a Redis volume without a separate
+data-retention decision.
 The local rollback Make target checks that the current clean version is 2, so a
 second invocation cannot accidentally drop the original cars table.
 
-The next focused backend milestone is the existing cache-consistency problem:
-reproduce a stale read filling Redis after a successful update, then choose whether
-this small service benefits enough from caching to justify stronger coordination.
+Exact money input is required on POST and PUT and converted from the original
+JSON number to integer cents before PostgreSQL. This prevents omitted prices
+becoming zero and float64 rounding away a fractional cent.
 Before public image uploads, authentication/ownership and media validation are
 required. A bigger generation dataset should follow actual coverage needs, not
 invented confidence or more abstraction.

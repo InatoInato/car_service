@@ -17,7 +17,6 @@ import (
 	"github.com/InatoInato/car_service.git/internal/provider"
 	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 )
 
 const testDatabaseURL = "postgres://loadtest:loadtest@127.0.0.1:15432/cars_test?sslmode=disable"
@@ -42,19 +41,13 @@ func runIntegration(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, "Run make test-up first:", err)
 		return 1
 	}
-	cache := redis.NewClient(&redis.Options{Addr: "127.0.0.1:16379", DialTimeout: time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second})
-	defer cache.Close()
-	if err = cache.Ping(ctx).Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "Test Redis unavailable:", err)
-		return 1
-	}
 	catalogue, err := provider.NewGenerationCatalog()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool), cache, logger), service.NewGenerationService(catalogue)))
+	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool)), service.NewGenerationService(catalogue)))
 	defer server.Close()
 	baseURL = server.URL
 	return m.Run()

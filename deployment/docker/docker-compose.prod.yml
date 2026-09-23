@@ -17,12 +17,9 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_SSLMODE: disable
-      REDIS_ADDR: redis:6379
 
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
@@ -58,19 +55,5 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:8-alpine
-    restart: unless-stopped
-
-    volumes:
-      - redis_data:/data
-
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
 volumes:
   postgres_data:
-  redis_data:

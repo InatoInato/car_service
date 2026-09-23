@@ -14,7 +14,6 @@ The business logic is deliberately boring — the point of this project is every
 | pgx | Postgres driver |
 | sqlc | Type-safe SQL generation |
 | golang-migrate | Migrations |
-| Redis | Caching |
 | Docker | Containerization |
 | Terraform | Infrastructure as code |
 | GitHub Actions | CI |
@@ -66,6 +65,10 @@ explicit `null`, empty, or whitespace-only values clear them. Responses include
 all three keys as strings or JSON `null`. Core PUT fields still use the existing
 replacement behavior.
 
+`price` is required on POST and PUT. Zero is allowed; a missing/null price,
+fractional cent, or value above `9999999999.99` returns 400. The backend parses
+the original JSON number exactly instead of rounding a float before saving.
+
 `image` is an absolute HTTP(S) URL (not an upload, binary data or filesystem path).
 Limits: image 2,048 characters, generation 100, description 10,000; request body
 128 KiB. Descriptions are plain text: frontends must escape them, not render HTML.
@@ -95,8 +98,8 @@ make test-http           # HTTP status/header/body-limit contracts, no Docker
 make race                # same tests with race detection
 make lint                # gofmt check + go vet; no extra linter
 make build               # bin/car_service
-make test-load           # isolated DB + Redis, bounded load scenarios
-make test-integration    # isolated DB + Redis; all integration/load tests with -race
+make test-load           # isolated DB, bounded load scenarios
+make test-integration    # isolated DB; all integration/load tests with -race
 make test-down           # stop only the isolated test stack
 ```
 
@@ -114,9 +117,10 @@ docker compose up -d --no-deps --build car_service
 ```
 
 The schema must be upgraded before the new binary runs. Migration 000002 only adds
-nullable columns; it does not rewrite 000001 or remove existing cars. The new binary
-uses `cars:v2:` Redis keys, leaving old keys to expire without flushing Redis.
-Do not run old and new app versions together: their cache namespaces differ.
+nullable columns; it does not rewrite 000001 or remove existing cars. This version
+reads mutable cars directly from PostgreSQL so Redis failures cannot serve stale
+prices or listing details. During rollout, stop old cached instances before
+serving traffic with this version.
 
 `make migrate-down CONFIRM=drop-listing-details` rolls back **one** migration in the
 local Compose database. This deletes optional-field data. Stop the new app first;
@@ -181,8 +185,7 @@ go test -race -count=1 -timeout=2m ./...
 
 The handler tests run the real router and service against a stub database, covering
 success paths, field mapping, malformed JSON, bad IDs and filters, 404s, DB failures,
-error response bodies, and context propagation. They don't add validation rules of
-their own.
+error response bodies, context propagation, and core field validation before SQL.
 
 Integration tests default to the separate test stack, not your development API:
 
@@ -193,7 +196,7 @@ make test-down
 
 The suite starts the real application in-process, so the race detector covers
 handlers/services as well as tests. It checks CRUD, optional fields, migrations,
-Redis, concurrency and bounded load. Migration tests create a transaction-local
+price precision, concurrency and bounded load. Migration tests create a transaction-local
 schema and roll it back; they never roll back your application database.
 The old external-API smoke test can still be selected explicitly with
 `CAR_SERVICE_BASE_URL=http://... go test -tags=integration ./test -run '^TestIntegrationCarsCRUDAndFilters$'`.
@@ -201,16 +204,16 @@ Never point write tests at production.
 
 ### Concurrency and load
 
-These use a separate stack on `127.0.0.1:15432` (Postgres) and `127.0.0.1:16379`
-(Redis) with its own database — your dev data is safe. Keep those ports free.
+These use a separate PostgreSQL database on `127.0.0.1:15432` — your dev data
+is safe. Keep that port free.
 
 ```bash
 docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml \
-  up -d --wait --wait-timeout 120 postgres redis
+  up -d --wait --wait-timeout 120 postgres
 docker compose -p car-service-tests -f deployment/docker/docker-compose.test.yml \
   run --rm migrate
 
-# Concurrent handlers/service/Postgres/Redis under the race detector
+# Concurrent handlers/service/Postgres under the race detector
 go test -race -tags=integration,load ./test -run '^TestConcurrent' -count=1 -timeout=2m -v
 
 # Load, without race-detector overhead
@@ -229,16 +232,12 @@ detector instruments server code. `CAR_SERVICE_BASE_URL` is ignored here. Each w
 owns its own car and cleans up only its own fixtures.
 
 The default run has two scenarios: 800 mixed update/read/list requests and 200
-concurrent uncached list requests. The second scenario pressures the PostgreSQL
-connection pool instead of measuring Redis alone. Setup and teardown happen outside
+concurrent list requests. The second scenario pressures the PostgreSQL
+connection pool. Setup and teardown happen outside
 the measurement. Each result line includes the scenario, request count, errors,
 throughput, and p50/p95/p99. Any HTTP or correctness error fails the test.
 
-Two caveats worth knowing:
-
-- These tests don't promise cache linearizability. There's a known stale-cache
-  interleaving that still needs a real fix plus a regression test.
-- No latency threshold is enforced, because shared CI runners are noisy. Set a baseline
+One caveat: no latency threshold is enforced, because shared CI runners are noisy. Set a baseline
   on fixed hardware first. This is a smoke test, not a capacity or soak test.
 
 Lint:
@@ -376,7 +375,7 @@ curl --fail http://localhost:8080/health
 ```
 
 Postgres starts first, migrations run, then the app. Compose sets `POSTGRES_HOST=postgres`
-and `REDIS_ADDR=redis:6379` for you. Neither Postgres nor Redis publishes a host port. From
+for you. PostgreSQL does not publish a host port. From
 your laptop, hit `http://EC2_PUBLIC_IP:8080/health` from the IP in `allowed_ssh_cidr`.
 
 To deploy an update, pull the revision you want and rerun the same command. Keep the same
@@ -456,7 +455,7 @@ go run github.com/swaggo/swag/cmd/swag@v1.8.1 init -g cmd/car_service/main.go -o
 - Structured logging, graceful shutdown, config validation, request ID middleware
 - Docker, Compose, container healthchecks
 - Unit, integration and load tests, GitHub Actions CI
-- Redis cache, pagination, OpenAPI/Swagger
+- Pagination, OpenAPI/Swagger
 - Terraform infrastructure
 
 **Next**
