@@ -23,7 +23,7 @@ func (unavailableGenerations) Generations(context.Context, string, string) ([]ge
 
 func TestGenerationUnavailableIsNotEmptySuccess(t *testing.T) {
 	for _, s := range []*service.GenerationService{nil, service.NewGenerationService(unavailableGenerations{})} {
-		r := router.New(slog.New(slog.NewTextHandler(io.Discard, nil)), nil, s)
+		r := router.New(slog.New(slog.NewTextHandler(io.Discard, nil)), nil, s, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest("GET", "/cars/generations?brand=M&model=E&year=1995", nil))
 		assertAPIError(t, w, 503)
@@ -42,7 +42,7 @@ func TestGenerationHTTPContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := router.New(slog.New(slog.NewTextHandler(io.Discard, nil)), nil, service.NewGenerationService(catalogue))
+	r := router.New(slog.New(slog.NewTextHandler(io.Discard, nil)), nil, service.NewGenerationService(catalogue), nil)
 	for _, tc := range []struct {
 		query         string
 		status, count int

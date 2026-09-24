@@ -49,7 +49,7 @@ Swagger UI is at [`/swagger/index.html`](http://localhost:8080/swagger/index.htm
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/health` | Health check |
+| GET | `/health` | PostgreSQL readiness check (200 or 503) |
 | GET | `/cars` | List and filter cars |
 | GET | `/cars/{id}` | Get car by ID |
 | POST | `/cars` | Create car |
@@ -164,7 +164,6 @@ curl "http://localhost:8080/cars?name=BMW&year=2023&min_price=30000&max_price=60
 │   ├── service/
 │   └── router.go
 ├── test/
-├── Dockerfile
 ├── docker-compose.yml
 └── sqlc.yaml
 ```
@@ -172,7 +171,8 @@ curl "http://localhost:8080/cars?name=BMW&year=2023&min_price=30000&max_price=60
 Request flow:
 
 ```
-HTTP → Chi Router → Handler → Service → sqlc Queries → PostgreSQL
+HTTP → Chi Router → Car Handler → sqlc Queries → PostgreSQL
+HTTP → Chi Router → Generation Handler → Generation Service → bundled catalogue
 ```
 
 ## Testing
@@ -402,7 +402,7 @@ token, or make the package public.
 | `init` asks for an S3 bucket | You're on the old configuration |
 | `plan` prompts for variables | `terraform.tfvars` is incomplete |
 | Docker missing on EC2 | Check `sudo tail -100 /var/log/user-data.log` |
-| App marked unhealthy | Both healthchecks use GET now; HEAD used to return 405 |
+| App marked unhealthy | `/health` checks PostgreSQL; inspect app and database logs |
 
 Container logs:
 

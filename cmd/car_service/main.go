@@ -76,13 +76,12 @@ func main() {
 	}
 
 	queries := db.New(dbPool)
-	carService := service.NewCarService(queries)
 	catalogue, err := provider.NewGenerationCatalog()
 	if err != nil {
 		logger.Error("invalid bundled generation catalogue", "error", err)
 		os.Exit(1)
 	}
-	r := router.New(logger, carService, service.NewGenerationService(catalogue))
+	r := router.New(logger, queries, service.NewGenerationService(catalogue), dbPool)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Server.Port,

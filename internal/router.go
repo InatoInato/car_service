@@ -10,28 +10,26 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-// Main wires both services explicitly. A nil generation service disables only
-// suggestions; CRUD does not depend on the suggestion provider.
-func New(logger *slog.Logger, carService *service.CarService, generationService *service.GenerationService) *chi.Mux {
+// A nil generation service disables suggestions; CRUD remains available.
+func New(logger *slog.Logger, carStore handler.CarStore, generationService *service.GenerationService, pinger handler.HealthPinger) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logging(logger))
 
-	// Fixed: Passed the service dependency
-	carHandler := handler.NewCarHandler(carService)
-	healthHandler := handler.NewHealthHandler()
+	carHandler := handler.NewCarHandler(carStore, logger)
+	healthHandler := handler.NewHealthHandler(pinger, logger)
 	generationHandler := handler.NewGenerationHandler(generationService, logger)
 
 	r.Route("/cars", func(r chi.Router) {
 		r.Get("/generations", generationHandler.Suggest)
-		r.Post("/", carHandler.Create)       // Missing POST
-		r.Get("/", carHandler.List)          // Missing GET all cars
-		r.Get("/{id}", carHandler.GetByID)   // Missing GET by ID
-		r.Put("/{id}", carHandler.Update)    // Missing PUT
-		r.Delete("/{id}", carHandler.Delete) // Missing DELETE
+		r.Post("/", carHandler.Create)
+		r.Get("/", carHandler.List)
+		r.Get("/{id}", carHandler.GetByID)
+		r.Put("/{id}", carHandler.Update)
+		r.Delete("/{id}", carHandler.Delete)
 	})
 
-	r.Get("/health", healthHandler.Health) // Missing health check endpoint
+	r.Get("/health", healthHandler.Health)
 
 	r.Get("/ping", healthHandler.Ping)
 	r.Get("/swagger/*", httpSwagger.WrapHandler)

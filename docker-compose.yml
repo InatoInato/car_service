@@ -38,7 +38,9 @@ services:
     restart: "no"
 
   car_service:
-    build: .
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile
     container_name: car-service
 
     depends_on:

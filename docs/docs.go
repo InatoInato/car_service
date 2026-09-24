@@ -362,7 +362,7 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Reports whether the service is running.",
+                "description": "Reports whether PostgreSQL is available.",
                 "produces": [
                     "application/json"
                 ],
@@ -373,6 +373,15 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {

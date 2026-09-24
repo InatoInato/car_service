@@ -47,7 +47,7 @@ func runIntegration(m *testing.M) int {
 		return 1
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool)), service.NewGenerationService(catalogue)))
+	server := httptest.NewServer(router.New(logger, db.New(pool), service.NewGenerationService(catalogue), pool))
 	defer server.Close()
 	baseURL = server.URL
 	return m.Run()

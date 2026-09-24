@@ -58,7 +58,7 @@ definitions:
         example: X5
         type: string
       model_generation:
-        example: W124 facelift
+        example: G05
         maxLength: 100
         type: string
         x-nullable: true
@@ -353,12 +353,18 @@ paths:
       - Cars
   /health:
     get:
-      description: Reports whether the service is running.
+      description: Reports whether PostgreSQL is available.
       produces:
       - application/json
       responses:
         "200":
           description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
           schema:
             additionalProperties:
               type: string

@@ -42,12 +42,6 @@ SELECT
 FROM cars
 WHERE id = $1;
 
--- name: ListCars :many
-SELECT id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
-FROM cars
-ORDER BY created_at DESC
-LIMIT $1 OFFSET $2;
-
 -- name: FilterCars :many
 SELECT id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
 FROM cars
@@ -83,17 +77,6 @@ RETURNING *;
 -- name: DeleteCar :exec
 DELETE FROM cars
 WHERE id = $1;
-
--- name: CarExists :one
-SELECT EXISTS (
-    SELECT 1
-    FROM cars
-    WHERE id = $1
-);
-
--- name: CountCars :one
-SELECT COUNT(*)
-FROM cars;
 
 -- name: CountFilteredCars :one
 SELECT COUNT(*)

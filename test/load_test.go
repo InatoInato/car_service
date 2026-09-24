@@ -21,7 +21,6 @@ import (
 
 	router "github.com/InatoInato/car_service.git/internal"
 	"github.com/InatoInato/car_service.git/internal/db"
-	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -41,7 +40,7 @@ func loadServer(t *testing.T) (*http.Client, string) {
 		t.Fatalf("start docker-compose.test.yml first: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(router.New(logger, service.NewCarService(db.New(pool)), nil))
+	server := httptest.NewServer(router.New(logger, db.New(pool), nil, pool))
 	t.Cleanup(server.Close)
 	client := server.Client()
 	client.Timeout = 5 * time.Second

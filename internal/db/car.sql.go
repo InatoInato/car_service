@@ -12,33 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const carExists = `-- name: CarExists :one
-SELECT EXISTS (
-    SELECT 1
-    FROM cars
-    WHERE id = $1
-)
-`
-
-func (q *Queries) CarExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, carExists, id)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const countCars = `-- name: CountCars :one
-SELECT COUNT(*)
-FROM cars
-`
-
-func (q *Queries) CountCars(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countCars)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countFilteredCars = `-- name: CountFilteredCars :one
 SELECT COUNT(*)
 FROM cars
@@ -266,50 +239,6 @@ func (q *Queries) GetCarByID(ctx context.Context, id uuid.UUID) (Car, error) {
 		&i.Description,
 	)
 	return i, err
-}
-
-const listCars = `-- name: ListCars :many
-SELECT id, brand, model, production_year, color, price, created_at, updated_at, image, model_generation, description
-FROM cars
-ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
-`
-
-type ListCarsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
-}
-
-func (q *Queries) ListCars(ctx context.Context, arg ListCarsParams) ([]Car, error) {
-	rows, err := q.db.Query(ctx, listCars, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Car{}
-	for rows.Next() {
-		var i Car
-		if err := rows.Scan(
-			&i.ID,
-			&i.Brand,
-			&i.Model,
-			&i.ProductionYear,
-			&i.Color,
-			&i.Price,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Image,
-			&i.ModelGeneration,
-			&i.Description,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const updateCar = `-- name: UpdateCar :one

@@ -1,14 +1,24 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"time"
 )
 
-type HealthHandler struct{}
+type HealthPinger interface {
+	Ping(context.Context) error
+}
 
-func NewHealthHandler() *HealthHandler {
-	return &HealthHandler{}
+type HealthHandler struct {
+	pinger HealthPinger
+	logger *slog.Logger
+}
+
+func NewHealthHandler(pinger HealthPinger, logger *slog.Logger) *HealthHandler {
+	return &HealthHandler{pinger: pinger, logger: logger}
 }
 
 // Ping godoc
@@ -26,17 +36,26 @@ func (h *HealthHandler) Ping(w http.ResponseWriter, r *http.Request) {
 // Health godoc
 //
 // @Summary      Health check
-// @Description  Reports whether the service is running.
+// @Description  Reports whether PostgreSQL is available.
 // @Tags         System
 // @Produce      json
 // @Success      200 {object} map[string]string
+// @Failure      503 {object} map[string]string
 // @Router       /health [get]
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
-	resp := map[string]string{
-		"status": "ok",
+	if h.pinger == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "unavailable"})
+		return
 	}
-
-	_ = json.NewEncoder(w).Encode(resp)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+	defer cancel()
+	if err := h.pinger.Ping(ctx); err != nil {
+		h.logger.WarnContext(r.Context(), "health check failed", "error", err)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "unavailable"})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

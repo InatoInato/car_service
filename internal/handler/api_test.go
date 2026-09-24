@@ -13,15 +13,15 @@ import (
 
 	router "github.com/InatoInato/car_service.git/internal"
 	"github.com/InatoInato/car_service.git/internal/db"
-	"github.com/InatoInato/car_service.git/internal/service"
+	"github.com/InatoInato/car_service.git/internal/handler"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-// Exercise the real router, handlers, and service with only persistence stubbed.
+// Exercise the real router and handlers with only persistence stubbed.
 // Each subtest owns its store so parallel tests share no mutable state.
 type apiStore struct {
-	service.CarStore
+	handler.CarStore
 	car      db.Car
 	err      error
 	calls    int
@@ -33,6 +33,7 @@ type apiStore struct {
 }
 
 func (s *apiStore) record(ctx context.Context) { s.calls++; s.ctx = ctx }
+func (s *apiStore) Ping(context.Context) error { return nil }
 func (s *apiStore) CreateCar(ctx context.Context, p db.CreateCarParams) (db.Car, error) {
 	s.record(ctx)
 	s.created = p
@@ -66,7 +67,7 @@ func (s *apiStore) CountFilteredCars(ctx context.Context, p db.CountFilteredCars
 func api(t *testing.T, store *apiStore) http.Handler {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return router.New(logger, service.NewCarService(store), nil)
+	return router.New(logger, store, nil, store)
 }
 
 const validCarJSON = `{"brand":"Toyota","model":"Camry","production_year":2024,"color":"Blue","price":12345.67}`

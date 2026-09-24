@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -11,19 +13,28 @@ import (
 
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/InatoInato/car_service.git/internal/handler/dto"
-	"github.com/InatoInato/car_service.git/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type CarHandler struct {
-	service *service.CarService
+type CarStore interface {
+	CreateCar(context.Context, db.CreateCarParams) (db.Car, error)
+	GetCarByID(context.Context, uuid.UUID) (db.Car, error)
+	FilterCars(context.Context, db.FilterCarsParams) ([]db.Car, error)
+	CountFilteredCars(context.Context, db.CountFilteredCarsParams) (int64, error)
+	UpdateCar(context.Context, db.UpdateCarParams) (db.Car, error)
+	DeleteCar(context.Context, uuid.UUID) error
 }
 
-func NewCarHandler(service *service.CarService) *CarHandler {
-	return &CarHandler{service: service}
+type CarHandler struct {
+	store  CarStore
+	logger *slog.Logger
+}
+
+func NewCarHandler(store CarStore, logger *slog.Logger) *CarHandler {
+	return &CarHandler{store: store, logger: logger}
 }
 
 // Create creates a new car.
@@ -56,9 +67,9 @@ func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	car, err := h.service.CreateCar(r.Context(), params)
+	car, err := h.store.CreateCar(r.Context(), params)
 	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "failed to create car")
+		h.writeStoreError(w, r, "create car", "failed to create car", err)
 		return
 	}
 
@@ -83,13 +94,13 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	car, err := h.service.GetCarByID(r.Context(), id)
+	car, err := h.store.GetCarByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			h.writeError(w, http.StatusNotFound, "car not found")
 			return
 		}
-		h.writeError(w, http.StatusInternalServerError, "failed to fetch car")
+		h.writeStoreError(w, r, "get car", "failed to fetch car", err)
 		return
 	}
 
@@ -123,9 +134,21 @@ func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cars, total, err := h.service.FilterCars(r.Context(), params)
+	cars, err := h.store.FilterCars(r.Context(), params)
 	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "failed to fetch cars")
+		h.writeStoreError(w, r, "list cars", "failed to fetch cars", err)
+		return
+	}
+	total, err := h.store.CountFilteredCars(r.Context(), db.CountFilteredCarsParams{
+		Name:        params.Name,
+		Year:        params.Year,
+		CreatedFrom: params.CreatedFrom,
+		CreatedTo:   params.CreatedTo,
+		MinPrice:    params.MinPrice,
+		MaxPrice:    params.MaxPrice,
+	})
+	if err != nil {
+		h.writeStoreError(w, r, "count cars", "failed to fetch cars", err)
 		return
 	}
 
@@ -320,13 +343,13 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Description: details.description, SetDescription: payload.Description.Present,
 	}
 
-	car, err := h.service.UpdateCar(r.Context(), params)
+	car, err := h.store.UpdateCar(r.Context(), params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			h.writeError(w, http.StatusNotFound, "car not found")
 			return
 		}
-		h.writeError(w, http.StatusInternalServerError, "failed to update car")
+		h.writeStoreError(w, r, "update car", "failed to update car", err)
 		return
 	}
 
@@ -372,9 +395,9 @@ func (h *CarHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.DeleteCar(r.Context(), id)
+	err = h.store.DeleteCar(r.Context(), id)
 	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "failed to delete car")
+		h.writeStoreError(w, r, "delete car", "failed to delete car", err)
 		return
 	}
 
@@ -389,4 +412,9 @@ func (h *CarHandler) writeJSON(w http.ResponseWriter, status int, data any) {
 
 func (h *CarHandler) writeError(w http.ResponseWriter, status int, msg string) {
 	h.writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func (h *CarHandler) writeStoreError(w http.ResponseWriter, r *http.Request, operation, message string, err error) {
+	h.logger.ErrorContext(r.Context(), "car store request failed", "operation", operation, "error", err)
+	h.writeError(w, http.StatusInternalServerError, message)
 }

@@ -1,9 +1,10 @@
 # Listing enrichment: decisions and review
 
-## Keep the existing architecture
+## Current architecture
 
-CRUD still follows router → handler → CarService → sqlc → PostgreSQL. Mutable
-cars are read directly from PostgreSQL. The runtime model remains sqlc's `db.Car`; adding a second domain
+CRUD follows router → handler → sqlc → PostgreSQL. The old CarService only
+forwarded calls and has been removed. Mutable cars are read directly from
+PostgreSQL. The runtime model remains sqlc's `db.Car`; adding a second domain
 Car and a mapping layer would not improve this small service. Swagger response DTOs
 were updated, and real HTTP tests verify their compatibility with `db.Car` JSON.
 
@@ -137,8 +138,8 @@ checking its licensing. Dataset updates require rebuild/redeploy, intentionally.
    NUL text is rejected before PostgreSQL. Extra JSON documents are rejected.
 5. Suggestions need uncertainty, not hidden defaults. Empty results stay arrays;
    overlaps remain multiple candidates; labels never become mandatory validation.
-6. A variadic router dependency would silently accept multiple services. The final
-   constructor uses one explicit service argument; tests pass nil when not needed.
+6. The router takes explicit dependencies, so missing store methods fail at
+   compile time instead of returning 500 from a runtime type assertion.
 7. Existing CI selected only concurrency/load tests. It now also runs the complete
    integration-tag suite, including optional-field and migration tests.
 8. Migration tests apply old schema → insert old car → upgrade → save metadata →
