@@ -56,7 +56,7 @@ AND (sqlc.narg('created_from')::timestamptz IS NULL OR created_at >= sqlc.narg('
 AND (sqlc.narg('created_to')::timestamptz IS NULL OR created_at <= sqlc.narg('created_to')::timestamptz)
 AND (sqlc.narg('min_price')::numeric IS NULL OR price >= sqlc.narg('min_price')::numeric)
 AND (sqlc.narg('max_price')::numeric IS NULL OR price <= sqlc.narg('max_price')::numeric)
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg('limit_count') OFFSET sqlc.arg('offset_count');
 
 -- name: UpdateCar :one

@@ -149,7 +149,7 @@ AND ($3::timestamptz IS NULL OR created_at >= $3::timestamptz)
 AND ($4::timestamptz IS NULL OR created_at <= $4::timestamptz)
 AND ($5::numeric IS NULL OR price >= $5::numeric)
 AND ($6::numeric IS NULL OR price <= $6::numeric)
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 LIMIT $8 OFFSET $7
 `
 
