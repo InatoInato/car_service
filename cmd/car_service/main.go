@@ -16,7 +16,6 @@ import (
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/InatoInato/car_service.git/internal/provider"
 	"github.com/InatoInato/car_service.git/internal/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // @title Car Service API
@@ -63,7 +62,7 @@ func main() {
 		cfg.Postgres.SSLMode,
 	)
 
-	dbPool, err := pgxpool.New(initCtx, dsn)
+	dbPool, err := db.OpenPool(initCtx, dsn)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
 		os.Exit(1)

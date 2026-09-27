@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -27,6 +28,8 @@ type CarStore interface {
 	UpdateCar(context.Context, db.UpdateCarParams) (db.Car, error)
 	DeleteCar(context.Context, uuid.UUID) error
 }
+
+const carStoreTimeout = 3 * time.Second
 
 type CarHandler struct {
 	store  CarStore
@@ -48,6 +51,7 @@ func NewCarHandler(store CarStore, logger *slog.Logger) *CarHandler {
 // @Success      201 {object} dto.CarResponse
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Failure      413 {object} dto.ErrorResponse
 // @Router       /cars [post]
 func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +71,8 @@ func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r, cancel := carStoreRequest(r)
+	defer cancel()
 	car, err := h.store.CreateCar(r.Context(), params)
 	if err != nil {
 		h.writeStoreError(w, r, "create car", "failed to create car", err)
@@ -85,6 +91,7 @@ func (h *CarHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} dto.CarResponse
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /cars/{id} [get]
 func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
@@ -94,6 +101,8 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r, cancel := carStoreRequest(r)
+	defer cancel()
 	car, err := h.store.GetCarByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -126,6 +135,7 @@ func (h *CarHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} dto.ListCarsResponse
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /cars [get]
 func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
 	params, page, limit, err := listCarsParams(r)
@@ -134,6 +144,8 @@ func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r, cancel := carStoreRequest(r)
+	defer cancel()
 	cars, err := h.store.FilterCars(r.Context(), params)
 	if err != nil {
 		h.writeStoreError(w, r, "list cars", "failed to fetch cars", err)
@@ -305,6 +317,7 @@ func priceFilter(value string) (pgtype.Numeric, float64, error) {
 // @Success      200 {object} dto.CarResponse
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Failure      413 {object} dto.ErrorResponse
 // @Router       /cars/{id} [put]
 func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -343,6 +356,8 @@ func (h *CarHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Description: details.description, SetDescription: payload.Description.Present,
 	}
 
+	r, cancel := carStoreRequest(r)
+	defer cancel()
 	car, err := h.store.UpdateCar(r.Context(), params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -386,6 +401,7 @@ func createCarParams(req dto.CreateCarRequest, price pgtype.Numeric) (db.CreateC
 // @Success      204
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /cars/{id} [delete]
 func (h *CarHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
@@ -395,6 +411,8 @@ func (h *CarHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r, cancel := carStoreRequest(r)
+	defer cancel()
 	err = h.store.DeleteCar(r.Context(), id)
 	if err != nil {
 		h.writeStoreError(w, r, "delete car", "failed to delete car", err)
@@ -415,6 +433,17 @@ func (h *CarHandler) writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 func (h *CarHandler) writeStoreError(w http.ResponseWriter, r *http.Request, operation, message string, err error) {
+	var pgErr *pgconn.PgError
+	if errors.Is(r.Context().Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &pgErr) && pgErr.Code == "57014") {
+		h.logger.WarnContext(r.Context(), "car store request timed out", "operation", operation, "error", err)
+		h.writeError(w, http.StatusServiceUnavailable, "database request timed out")
+		return
+	}
 	h.logger.ErrorContext(r.Context(), "car store request failed", "operation", operation, "error", err)
 	h.writeError(w, http.StatusInternalServerError, message)
+}
+
+func carStoreRequest(r *http.Request) (*http.Request, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(r.Context(), carStoreTimeout)
+	return r.WithContext(ctx), cancel
 }

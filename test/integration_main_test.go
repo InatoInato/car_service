@@ -16,7 +16,6 @@ import (
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/InatoInato/car_service.git/internal/provider"
 	"github.com/InatoInato/car_service.git/internal/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const testDatabaseURL = "postgres://loadtest:loadtest@127.0.0.1:15432/cars_test?sslmode=disable"
@@ -31,7 +30,7 @@ func runIntegration(m *testing.M) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, testDatabaseURL)
+	pool, err := db.OpenPool(ctx, testDatabaseURL)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

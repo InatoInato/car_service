@@ -58,7 +58,7 @@ definitions:
         example: X5
         type: string
       model_generation:
-        example: G05
+        example: W124 facelift
         maxLength: 100
         type: string
         x-nullable: true
@@ -191,6 +191,10 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: List cars
       tags:
       - Cars
@@ -224,6 +228,10 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Create car
       tags:
       - Cars
@@ -244,6 +252,10 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       summary: Delete car
@@ -269,6 +281,10 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       summary: Get car
@@ -308,6 +324,10 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
         "413":
           description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       summary: Update car

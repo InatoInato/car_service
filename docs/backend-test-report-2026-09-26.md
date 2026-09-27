@@ -80,6 +80,14 @@ there is still time to write it. Add a regression that holds a row lock beyond
 that budget and verifies prompt failure and an unchanged price. Track timeout
 errors explicitly; response status logs alone cannot prove delivery.
 
+Follow-up: this first-priority issue is fixed in the subsequent change. A Go-only
+three-second deadline failed the regression because the update still committed
+when the lock was released just after the response. The working fix applies a
+two-second PostgreSQL `statement_timeout` to pooled connections and a
+three-second handler deadline. The locked-update regression now returns 503 in
+about two seconds, leaves the price unchanged, and confirms a later normal
+update succeeds. The other findings below remain open.
+
 ## 2. High priority during credential rotation: valid passwords break startup
 
 Location: `cmd/car_service/main.go:56`.
@@ -192,13 +200,13 @@ rolled back; neither was added to the application schema.
 
 ## Recommended order
 
-1. Bound database operation/lock waits and test the failed-response/committed-write case.
+1. Done: bound database statement/operation times and test the locked update.
 2. Correct credential encoding in the application and migration startup paths.
 3. Reject malformed query parameters before database access.
 4. Implement and benchmark the indexed search candidate with a forward migration.
 
-The full existing test suite passed, but the three new failure probes above
-expose missing regression coverage. None is evidence that race detection failed:
+The full existing test suite passed. The password and malformed-query probes
+still lack regression coverage. None is evidence that race detection failed:
 database waits, URL parsing, and malformed input are different failure classes.
 
 Cleanup: all 20,000 catalog fixtures and individual HTTP/lock fixtures were

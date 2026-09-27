@@ -22,7 +22,6 @@ import (
 	router "github.com/InatoInato/car_service.git/internal"
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // The application runs in-process so -race instruments real handlers/services.
@@ -31,7 +30,7 @@ func loadServer(t *testing.T) (*http.Client, string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, "postgres://loadtest:loadtest@127.0.0.1:15432/cars_test?sslmode=disable")
+	pool, err := db.OpenPool(ctx, testDatabaseURL)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -186,6 +186,11 @@ func TestAPIPersistenceErrors(t *testing.T) {
 		{"GET", "/cars", "", errors.New("secret database details"), 500},
 		{"PUT", "/cars/" + id, validCarJSON, errors.New("secret database details"), 500},
 		{"DELETE", "/cars/" + id, "", errors.New("secret database details"), 500},
+		{"POST", "/cars", validCarJSON, context.DeadlineExceeded, 503},
+		{"GET", "/cars/" + id, "", context.DeadlineExceeded, 503},
+		{"GET", "/cars", "", context.DeadlineExceeded, 503},
+		{"PUT", "/cars/" + id, validCarJSON, context.DeadlineExceeded, 503},
+		{"DELETE", "/cars/" + id, "", context.DeadlineExceeded, 503},
 		{"GET", "/cars/" + id, "", pgx.ErrNoRows, 404},
 		{"PUT", "/cars/" + id, validCarJSON, pgx.ErrNoRows, 404},
 	}
@@ -230,6 +235,9 @@ func TestAPISuccessContracts(t *testing.T) {
 			api(t, store).ServeHTTP(res, req)
 			if res.Code != status {
 				t.Fatalf("want %d, got %d: %s", status, res.Code, res.Body.String())
+			}
+			if _, ok := store.ctx.Deadline(); !ok {
+				t.Fatal("car store call has no deadline")
 			}
 			cancel()
 			if store.ctx == nil || store.ctx.Err() != context.Canceled {
