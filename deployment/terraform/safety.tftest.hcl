@@ -21,6 +21,10 @@ variables {
 run "safe_defaults" {
   command = plan
   assert {
+    condition     = aws_instance.car_service.root_block_device[0].volume_size == 20 && aws_instance.car_service.root_block_device[0].volume_type == "gp3"
+    error_message = "The host needs an explicit 20 GiB gp3 disk for Docker, PostgreSQL and swap."
+  }
+  assert {
     condition     = length(aws_security_group.car_service.ingress) == 2 && alltrue([for rule in aws_security_group.car_service.ingress : toset(rule.cidr_blocks) == toset([var.allowed_ssh_cidr])])
     error_message = "SSH and API must be limited to the chosen address."
   }

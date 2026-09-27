@@ -2,6 +2,8 @@ package config
 
 import (
 	"log"
+	"net"
+	"net/url"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -23,6 +25,18 @@ type PostgresConfig struct {
 	Password string
 	Database string
 	SSLMode  string
+}
+
+// DSN escapes credentials and connection values before passing them to pgx.
+func (p PostgresConfig) DSN() string {
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(p.User, p.Password),
+		Host:     net.JoinHostPort(p.Host, p.Port),
+		Path:     "/" + p.Database,
+		RawQuery: url.Values{"sslmode": {p.SSLMode}}.Encode(),
+	}
+	return u.String()
 }
 
 func Load() Config {

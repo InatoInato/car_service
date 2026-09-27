@@ -27,6 +27,10 @@ services:
   migrate:
     image: migrate/migrate:v4.18.3
     restart: "no"
+    environment:
+      PGUSER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:?Set POSTGRES_DB}
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,7 +38,7 @@ services:
       - ../../database/migrations:/migrations:ro
     command:
       - -path=/migrations
-      - -database=postgres://${POSTGRES_USER:?Set POSTGRES_USER}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}?sslmode=disable
+      - -database=postgres://postgres:5432?sslmode=disable&connect_timeout=10
       - up
 
   postgres:

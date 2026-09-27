@@ -141,6 +141,10 @@ without a backup and an explicit recovery plan.
 | `price` | Exact price |
 | `page`, `limit` | Pagination; `limit` is 1–100 |
 
+Search names are limited to 201 characters. Invalid URL encoding, invalid UTF-8,
+NUL characters, repeated parameters, and using both names of an alias are rejected
+with 400 before database access.
+
 ```bash
 curl "http://localhost:8080/cars?name=BMW&year=2023&min_price=30000&max_price=60000"
 ```
@@ -249,7 +253,7 @@ go vet ./...
 
 ## CI
 
-Every push and PR runs gofmt, `go vet`, race-enabled unit/handler tests, the concurrent
+Pushes to `main`/`develop` and PRs run gofmt, `go vet`, race-enabled unit/handler tests, the concurrent
 API tests, the default load smoke test, then builds the binary and the Docker image.
 
 Pushes to `main` additionally publish an amd64 image to `ghcr.io/<owner>/<repository>`,
@@ -259,6 +263,7 @@ tagged `latest` and with the commit SHA. The workflow lives in `.github/workflow
 
 The AWS setup is one small EC2 instance. SSH and port 8080 are open only to a single IP
 you choose. **The API has no authentication**, so keep that rule narrow.
+The root disk is explicitly 20 GiB gp3, shared by Docker, PostgreSQL and swap.
 
 ### 1. Variables
 
@@ -363,7 +368,9 @@ openssl rand -hex 24
 ```
 
 Put that hex value in `POSTGRES_PASSWORD`. Keep `POSTGRES_USER=postgres` and
-`POSTGRES_DB=cars`. Use a URL-safe password — the migration connection string is a URL.
+`POSTGRES_DB=cars`. The app encodes connection values; migrations read credentials
+from PostgreSQL environment variables. For a password containing `$` or `#`, use
+single quotes around its value in the Compose `.env` file to preserve it literally.
 Changing this file later won't change the password of an already-initialized database.
 
 Build and start:
@@ -418,7 +425,9 @@ docker compose --env-file deployment/docker/.env \
 Locally: Terraform init/validate, all six mocked Terraform tests, Go tests and vet, a fresh
 migration run, healthy production containers, and the HTTP CRUD/filter integration tests.
 
-Not yet done: a real EC2 apply, and publishing an image from GitHub Actions.
+A real EC2 deployment was verified on 2026-09-27. See the
+[deployment report and operating commands](docs/deployment-2026-09-27.md).
+Image publication from GitHub Actions and snapshot restoration have not been verified.
 
 Isolated production check on port 18080:
 

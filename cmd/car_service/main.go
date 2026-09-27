@@ -52,17 +52,7 @@ func main() {
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer initCancel()
 
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		cfg.Postgres.User,
-		cfg.Postgres.Password,
-		cfg.Postgres.Host,
-		cfg.Postgres.Port,
-		cfg.Postgres.Database,
-		cfg.Postgres.SSLMode,
-	)
-
-	dbPool, err := db.OpenPool(initCtx, dsn)
+	dbPool, err := db.OpenPool(initCtx, cfg.Postgres.DSN())
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
 		os.Exit(1)

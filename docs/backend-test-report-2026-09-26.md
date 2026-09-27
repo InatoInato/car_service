@@ -90,6 +90,9 @@ update succeeds. The other findings below remain open.
 
 ## 2. High priority during credential rotation: valid passwords break startup
 
+Follow-up (2026-09-27): fixed by encoding the application connection URL and
+passing migration credentials through PGUSER, PGPASSWORD and PGDATABASE.
+
 Location: `cmd/car_service/main.go:56`.
 
 A disposable role with a synthetic password containing `/`, `?`, and `#`
@@ -113,6 +116,9 @@ change. Its equivalent failure was identified by inspection, not a migration run
 with the special password. The disposable role was removed.
 
 ## 3. Medium priority: invalid search input reaches PostgreSQL or loses its filter
+
+Follow-up (2026-09-27): fixed with explicit query parsing, text validation and
+duplicate/alias rejection before SQL. Handler regression cases cover these inputs.
 
 Location: `internal/handler/car.go:166` and `internal/handler/car.go:191`.
 
@@ -201,12 +207,14 @@ rolled back; neither was added to the application schema.
 ## Recommended order
 
 1. Done: bound database statement/operation times and test the locked update.
-2. Correct credential encoding in the application and migration startup paths.
-3. Reject malformed query parameters before database access.
+2. Done (2026-09-27): correct credentials in application and migration startup paths.
+3. Done (2026-09-27): reject malformed query parameters before database access.
 4. Implement and benchmark the indexed search candidate with a forward migration.
 
-The full existing test suite passed. The password and malformed-query probes
-still lack regression coverage. None is evidence that race detection failed:
+The full existing test suite passed. At the time of this original audit, the password
+and malformed-query probes lacked regression coverage; regression checks were added
+and real special-password migration/app startup was verified on 2026-09-27.
+None is evidence that race detection failed:
 database waits, URL parsing, and malformed input are different failure classes.
 
 Cleanup: all 20,000 catalog fixtures and individual HTTP/lock fixtures were

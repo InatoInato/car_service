@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/InatoInato/car_service.git/internal/db"
 	"github.com/InatoInato/car_service.git/internal/handler/dto"
@@ -175,7 +177,24 @@ func (h *CarHandler) List(w http.ResponseWriter, r *http.Request) {
 func listCarsParams(r *http.Request) (db.FilterCarsParams, int, int, error) {
 	const maxInt32 = int64(1<<31 - 1)
 
-	query := r.URL.Query()
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return db.FilterCarsParams{}, 0, 0, errors.New("invalid query encoding")
+	}
+	for _, values := range query {
+		if len(values) != 1 {
+			return db.FilterCarsParams{}, 0, 0, errors.New("query parameters must be provided once")
+		}
+	}
+	for _, aliases := range [][2]string{{"year", "production_year"}, {"created_at", "created_time"}} {
+		if query.Has(aliases[0]) && query.Has(aliases[1]) {
+			return db.FilterCarsParams{}, 0, 0, errors.New("provide only one of " + aliases[0] + " and " + aliases[1])
+		}
+	}
+	name := query.Get("name")
+	if !utf8.ValidString(name) || strings.ContainsRune(name, 0) || utf8.RuneCountInString(name) > 201 {
+		return db.FilterCarsParams{}, 0, 0, errors.New("name must be valid text of at most 201 characters without NUL")
+	}
 	page := 1
 	limit := 20
 
@@ -200,12 +219,12 @@ func listCarsParams(r *http.Request) (db.FilterCarsParams, int, int, error) {
 	}
 
 	params := db.FilterCarsParams{
-		Name:        strings.TrimSpace(query.Get("name")),
+		Name:        strings.TrimSpace(name),
 		LimitCount:  int32(limit),
 		OffsetCount: int32((page - 1) * limit),
 	}
 
-	yearValue := firstQueryValue(r, "year", "production_year")
+	yearValue := firstQueryValue(query, "year", "production_year")
 	if yearValue != "" {
 		year, err := strconv.ParseInt(yearValue, 10, 16)
 		if err != nil || year < 1886 || year > 2100 {
@@ -216,7 +235,7 @@ func listCarsParams(r *http.Request) (db.FilterCarsParams, int, int, error) {
 
 	createdFromValue := query.Get("created_from")
 	createdToValue := query.Get("created_to")
-	exactCreatedValue := firstQueryValue(r, "created_at", "created_time")
+	exactCreatedValue := firstQueryValue(query, "created_at", "created_time")
 	if exactCreatedValue != "" {
 		if createdFromValue != "" || createdToValue != "" {
 			return db.FilterCarsParams{}, 0, 0, errors.New("created_at cannot be combined with created_from or created_to")
@@ -267,9 +286,9 @@ func listCarsParams(r *http.Request) (db.FilterCarsParams, int, int, error) {
 	return params, page, limit, nil
 }
 
-func firstQueryValue(r *http.Request, keys ...string) string {
+func firstQueryValue(query url.Values, keys ...string) string {
 	for _, key := range keys {
-		if value := r.URL.Query().Get(key); value != "" {
+		if value := query.Get(key); value != "" {
 			return value
 		}
 	}

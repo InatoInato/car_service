@@ -69,6 +69,8 @@ resource "aws_instance" "car_service" {
   disable_api_termination = true
 
   root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
     # Keep the disk if an operator deliberately terminates the instance.
     delete_on_termination = false
     tags = {

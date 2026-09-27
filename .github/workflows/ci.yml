@@ -50,6 +50,9 @@ jobs:
       - name: Build application
         run: go build ./cmd/car_service
 
+      - name: Build deployment image
+        run: docker build -f deployment/docker/Dockerfile -t car-service:ci .
+
   concurrency:
     runs-on: ubuntu-latest
     timeout-minutes: 10

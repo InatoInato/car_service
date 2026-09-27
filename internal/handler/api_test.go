@@ -87,6 +87,15 @@ func TestAPIRejectsMalformedRequestsBeforePersistence(t *testing.T) {
 		{"invalid limit", "GET", "/cars?limit=101", ""},
 		{"nonfinite price", "GET", "/cars?min_price=NaN", ""},
 		{"invalid timestamp", "GET", "/cars?created_from=tomorrow", ""},
+		{"NUL search", "GET", "/cars?name=%00", ""},
+		{"invalid UTF8 search", "GET", "/cars?name=%FF", ""},
+		{"malformed escape", "GET", "/cars?name=%ZZ", ""},
+		{"malformed separator", "GET", "/cars?year=2024;year=bad", ""},
+		{"duplicate filter", "GET", "/cars?year=2024&year=bad", ""},
+		{"duplicate page", "GET", "/cars?page=1&page=2", ""},
+		{"conflicting aliases", "GET", "/cars?year=2024&production_year=2023", ""},
+		{"conflicting time aliases", "GET", "/cars?created_at=2024-01-01T00:00:00Z&created_time=2023-01-01T00:00:00Z", ""},
+		{"long search", "GET", "/cars?name=" + strings.Repeat("x", 202), ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
